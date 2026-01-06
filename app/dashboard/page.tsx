@@ -276,7 +276,7 @@ function DashboardContent() {
     setOpenMenuId(null);
 
     try {
-      const response = await fetch(`/api/bundles?bundleId=${bundleId}`, {
+      const response = await fetch(`/api/bundles?bundleId=${bundleId}&shop=${shop}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Failed to delete');

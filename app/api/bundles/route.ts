@@ -89,10 +89,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Get store ID
+    // Get store with access token
     const { data: store } = await supabase
       .from('stores')
-      .select('id')
+      .select('id, access_token')
       .eq('shop_domain', shop)
       .single();
 
@@ -100,16 +100,93 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Store not found' }, { status: 404 });
     }
 
-    // Create bundle
+    const bundleName = name || `Bundle of ${items.length} items`;
+
+    // Create product in Shopify
+    let shopifyProductId = null;
+    let shopifyVariantId = null;
+
+    if (store.access_token) {
+      try {
+        // Build description with bundle contents
+        const itemsList = items.map((item: { title: string; quantity: number }) =>
+          `• ${item.title}${item.quantity > 1 ? ` (x${item.quantity})` : ''}`
+        ).join('\n');
+
+        const productDescription = description
+          ? `${description}\n\nThis bundle includes:\n${itemsList}`
+          : `This bundle includes:\n${itemsList}\n\nSave ${discountPercent}% when you buy together!`;
+
+        // Get the first item's image for the bundle
+        const bundleImage = items[0]?.image;
+
+        const productData: {
+          product: {
+            title: string;
+            body_html: string;
+            vendor: string;
+            product_type: string;
+            tags: string[];
+            variants: { price: string; compare_at_price: string; inventory_management: null; requires_shipping: boolean }[];
+            images?: { src: string }[];
+          };
+        } = {
+          product: {
+            title: `${bundleName}`,
+            body_html: productDescription.replace(/\n/g, '<br>'),
+            vendor: 'Bundli',
+            product_type: 'Bundle',
+            tags: ['bundle', 'bundli'],
+            variants: [{
+              price: bundlePrice.toFixed(2),
+              compare_at_price: originalPrice.toFixed(2),
+              inventory_management: null,
+              requires_shipping: true,
+            }],
+          }
+        };
+
+        if (bundleImage && bundleImage.startsWith('http')) {
+          productData.product.images = [{ src: bundleImage }];
+        }
+
+        const shopifyResponse = await fetch(
+          `https://${shop}/admin/api/2024-10/products.json`,
+          {
+            method: 'POST',
+            headers: {
+              'X-Shopify-Access-Token': store.access_token,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(productData),
+          }
+        );
+
+        if (shopifyResponse.ok) {
+          const shopifyData = await shopifyResponse.json();
+          shopifyProductId = shopifyData.product.id.toString();
+          shopifyVariantId = shopifyData.product.variants[0]?.id.toString();
+        } else {
+          console.error('Shopify product creation failed:', await shopifyResponse.text());
+        }
+      } catch (shopifyError) {
+        console.error('Error creating Shopify product:', shopifyError);
+        // Continue anyway - bundle will be saved without Shopify product
+      }
+    }
+
+    // Create bundle in database
     const { data: bundle, error: bundleError } = await supabase
       .from('bundles')
       .insert({
         store_id: store.id,
-        name: name || `Bundle of ${items.length} items`,
+        name: bundleName,
         description,
         original_price: originalPrice,
         bundle_price: bundlePrice,
         discount_percent: discountPercent,
+        shopify_product_id: shopifyProductId,
+        shopify_variant_id: shopifyVariantId,
         is_active: true,
       })
       .select()
@@ -208,13 +285,47 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const bundleId = searchParams.get('bundleId');
+  const shop = searchParams.get('shop');
 
   if (!bundleId) {
     return NextResponse.json({ error: 'Bundle ID required' }, { status: 400 });
   }
 
   try {
-    // Bundle items will be cascade deleted
+    // Get bundle with Shopify product ID
+    const { data: bundle } = await supabase
+      .from('bundles')
+      .select('shopify_product_id, store_id')
+      .eq('id', bundleId)
+      .single();
+
+    // Delete from Shopify if product exists
+    if (bundle?.shopify_product_id && shop) {
+      const { data: store } = await supabase
+        .from('stores')
+        .select('access_token')
+        .eq('shop_domain', shop)
+        .single();
+
+      if (store?.access_token) {
+        try {
+          await fetch(
+            `https://${shop}/admin/api/2024-10/products/${bundle.shopify_product_id}.json`,
+            {
+              method: 'DELETE',
+              headers: {
+                'X-Shopify-Access-Token': store.access_token,
+              },
+            }
+          );
+        } catch (shopifyError) {
+          console.error('Error deleting Shopify product:', shopifyError);
+          // Continue with database deletion anyway
+        }
+      }
+    }
+
+    // Delete from database (bundle items will cascade delete)
     const { error } = await supabase
       .from('bundles')
       .delete()
