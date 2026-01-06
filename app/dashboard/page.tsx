@@ -90,6 +90,15 @@ function DashboardContent() {
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>(mockAISuggestions);
   const [analyzingOrders, setAnalyzingOrders] = useState(false);
 
+  // Preferences
+  const [preferences, setPreferences] = useState({
+    notificationEmail: '',
+    notifyBundleSold: true,
+    notifyLowInventory: true,
+    notifyWeeklySummary: false,
+  });
+  const [savingPrefs, setSavingPrefs] = useState(false);
+
   useEffect(() => {
     if (!shop) return;
     const fetchStore = async () => {
@@ -105,8 +114,40 @@ function DashboardContent() {
         setLoading(false);
       }
     };
+
+    const fetchPreferences = async () => {
+      try {
+        const response = await fetch(`/api/stores/preferences?shop=${shop}`);
+        if (response.ok) {
+          const data = await response.json();
+          setPreferences(data.preferences);
+        }
+      } catch (error) {
+        console.error('Error fetching preferences:', error);
+      }
+    };
+
     fetchStore();
+    fetchPreferences();
   }, [shop]);
+
+  const updatePreference = async (key: string, value: boolean | string) => {
+    const newPrefs = { ...preferences, [key]: value };
+    setPreferences(newPrefs);
+    setSavingPrefs(true);
+
+    try {
+      await fetch('/api/stores/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shop, [key]: value }),
+      });
+    } catch (error) {
+      console.error('Error saving preference:', error);
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
 
   const filteredProducts = mockProducts.filter(p =>
     p.title.toLowerCase().includes(productSearch.toLowerCase())
@@ -621,37 +662,74 @@ function DashboardContent() {
               </div>
             </div>
 
-            {/* Preferences */}
+            {/* Email Notifications */}
             <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-6">
               <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                <span>⚙️</span> Preferences
+                <span>📧</span> Email Notifications
+                {savingPrefs && <span className="text-xs text-white/40 ml-2">Saving...</span>}
               </h3>
+
+              {/* Email Input */}
+              <div className="mb-6">
+                <label className="block text-white/60 text-sm mb-2">Notification Email</label>
+                <input
+                  type="email"
+                  value={preferences.notificationEmail}
+                  onChange={(e) => setPreferences({ ...preferences, notificationEmail: e.target.value })}
+                  onBlur={(e) => updatePreference('notificationEmail', e.target.value)}
+                  placeholder="your@email.com"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-emerald-500"
+                />
+                <p className="text-white/40 text-xs mt-2">We'll send notifications to this email address</p>
+              </div>
+
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-white font-medium">Auto-sync inventory</p>
-                    <p className="text-white/60 text-sm">Automatically deduct inventory when bundles sell</p>
+                    <p className="text-white font-medium">Bundle sold alerts</p>
+                    <p className="text-white/60 text-sm">Get notified when a bundle sells</p>
                   </div>
-                  <button className="w-12 h-6 bg-emerald-600 rounded-full relative">
-                    <span className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full" />
+                  <button
+                    onClick={() => updatePreference('notifyBundleSold', !preferences.notifyBundleSold)}
+                    className={`w-12 h-6 rounded-full relative transition-colors ${
+                      preferences.notifyBundleSold ? 'bg-emerald-600' : 'bg-white/20'
+                    }`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 rounded-full transition-all ${
+                      preferences.notifyBundleSold ? 'right-1 bg-white' : 'left-1 bg-white/60'
+                    }`} />
                   </button>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-white font-medium">Email notifications</p>
-                    <p className="text-white/60 text-sm">Get notified when bundles sell</p>
+                    <p className="text-white font-medium">Low inventory warnings</p>
+                    <p className="text-white/60 text-sm">Alert when bundle components run low</p>
                   </div>
-                  <button className="w-12 h-6 bg-white/20 rounded-full relative">
-                    <span className="absolute left-1 top-1 w-4 h-4 bg-white/60 rounded-full" />
+                  <button
+                    onClick={() => updatePreference('notifyLowInventory', !preferences.notifyLowInventory)}
+                    className={`w-12 h-6 rounded-full relative transition-colors ${
+                      preferences.notifyLowInventory ? 'bg-emerald-600' : 'bg-white/20'
+                    }`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 rounded-full transition-all ${
+                      preferences.notifyLowInventory ? 'right-1 bg-white' : 'left-1 bg-white/60'
+                    }`} />
                   </button>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-white font-medium">AI suggestions</p>
-                    <p className="text-white/60 text-sm">Automatically analyze orders for bundle ideas</p>
+                    <p className="text-white font-medium">Weekly summary</p>
+                    <p className="text-white/60 text-sm">Receive weekly bundle performance digest</p>
                   </div>
-                  <button className="w-12 h-6 bg-emerald-600 rounded-full relative">
-                    <span className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full" />
+                  <button
+                    onClick={() => updatePreference('notifyWeeklySummary', !preferences.notifyWeeklySummary)}
+                    className={`w-12 h-6 rounded-full relative transition-colors ${
+                      preferences.notifyWeeklySummary ? 'bg-emerald-600' : 'bg-white/20'
+                    }`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 rounded-full transition-all ${
+                      preferences.notifyWeeklySummary ? 'right-1 bg-white' : 'left-1 bg-white/60'
+                    }`} />
                   </button>
                 </div>
               </div>
