@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 interface Store {
@@ -14,7 +14,7 @@ interface Store {
 interface Product {
   id: string;
   title: string;
-  image: string;
+  image: string | null;
   price: string;
   inventory: number;
   variants: { id: string; title: string; price: string; inventory: number }[];
@@ -24,7 +24,7 @@ interface BundleItem {
   productId: string;
   variantId: string;
   title: string;
-  image: string;
+  image: string | null;
   quantity: number;
   price: number;
 }
@@ -45,36 +45,44 @@ interface Bundle {
 
 interface AISuggestion {
   id: string;
-  products: { id: string; title: string; image: string }[];
+  products: { id: string; title: string; image: string | null }[];
   confidence: number;
   timesBoughtTogether: number;
   suggestedDiscount: number;
   status: 'pending' | 'accepted' | 'dismissed';
 }
 
-// Mock data for UI demonstration
-const mockProducts: Product[] = [
-  { id: '1', title: 'Classic White T-Shirt', image: '👕', price: '29.99', inventory: 150, variants: [{ id: '1-s', title: 'Small', price: '29.99', inventory: 50 }, { id: '1-m', title: 'Medium', price: '29.99', inventory: 50 }, { id: '1-l', title: 'Large', price: '29.99', inventory: 50 }] },
-  { id: '2', title: 'Slim Fit Jeans', image: '👖', price: '79.99', inventory: 80, variants: [{ id: '2-32', title: '32"', price: '79.99', inventory: 40 }, { id: '2-34', title: '34"', price: '79.99', inventory: 40 }] },
-  { id: '3', title: 'Running Sneakers', image: '👟', price: '129.99', inventory: 45, variants: [{ id: '3-9', title: 'Size 9', price: '129.99', inventory: 15 }, { id: '3-10', title: 'Size 10', price: '129.99', inventory: 15 }, { id: '3-11', title: 'Size 11', price: '129.99', inventory: 15 }] },
-  { id: '4', title: 'Leather Belt', image: '🎗️', price: '49.99', inventory: 200, variants: [{ id: '4-1', title: 'One Size', price: '49.99', inventory: 200 }] },
-  { id: '5', title: 'Wool Beanie', image: '🧢', price: '24.99', inventory: 120, variants: [{ id: '5-1', title: 'One Size', price: '24.99', inventory: 120 }] },
-  { id: '6', title: 'Cotton Socks (3-Pack)', image: '🧦', price: '14.99', inventory: 300, variants: [{ id: '6-1', title: 'One Size', price: '14.99', inventory: 300 }] },
-];
-
-const mockAISuggestions: AISuggestion[] = [
-  { id: '1', products: [{ id: '1', title: 'Classic White T-Shirt', image: '👕' }, { id: '2', title: 'Slim Fit Jeans', image: '👖' }], confidence: 0.92, timesBoughtTogether: 156, suggestedDiscount: 15, status: 'pending' },
-  { id: '2', products: [{ id: '3', title: 'Running Sneakers', image: '👟' }, { id: '6', title: 'Cotton Socks (3-Pack)', image: '🧦' }], confidence: 0.87, timesBoughtTogether: 98, suggestedDiscount: 10, status: 'pending' },
-  { id: '3', products: [{ id: '1', title: 'Classic White T-Shirt', image: '👕' }, { id: '4', title: 'Leather Belt', image: '🎗️' }, { id: '2', title: 'Slim Fit Jeans', image: '👖' }], confidence: 0.78, timesBoughtTogether: 67, suggestedDiscount: 20, status: 'pending' },
-];
+// Product image component that handles both URLs and fallback
+function ProductImage({ src, alt, className = '' }: { src: string | null; alt: string; className?: string }) {
+  if (src && src.startsWith('http')) {
+    return (
+      <img
+        src={src}
+        alt={alt}
+        className={`object-cover ${className}`}
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = 'none';
+          (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+        }}
+      />
+    );
+  }
+  // Fallback to emoji or placeholder
+  return <span className="text-xl">{src || '📦'}</span>;
+}
 
 function DashboardContent() {
   const searchParams = useSearchParams();
   const shop = searchParams.get('shop');
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'bundles' | 'ai' | 'analytics' | 'settings'>('bundles');
+
+  // Products state
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   // Bundle state
   const [bundles, setBundles] = useState<Bundle[]>([]);
@@ -85,9 +93,11 @@ function DashboardContent() {
   const [bundleDescription, setBundleDescription] = useState('');
   const [discountPercent, setDiscountPercent] = useState(10);
   const [productSearch, setProductSearch] = useState('');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [editingBundle, setEditingBundle] = useState<Bundle | null>(null);
 
-  // AI Suggestions
-  const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>(mockAISuggestions);
+  // AI Suggestions - will be populated from products
+  const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
   const [analyzingOrders, setAnalyzingOrders] = useState(false);
 
   // Preferences
@@ -127,9 +137,72 @@ function DashboardContent() {
       }
     };
 
+    const fetchProducts = async () => {
+      setLoadingProducts(true);
+      try {
+        const response = await fetch(`/api/products?shop=${shop}`);
+        if (response.ok) {
+          const data = await response.json();
+          setProducts(data.products || []);
+          // Generate mock AI suggestions from real products
+          if (data.products && data.products.length >= 2) {
+            const prods = data.products.slice(0, 6);
+            const suggestions: AISuggestion[] = [];
+            if (prods.length >= 2) {
+              suggestions.push({
+                id: '1',
+                products: [prods[0], prods[1]].map((p: Product) => ({ id: p.id, title: p.title, image: p.image })),
+                confidence: 0.92,
+                timesBoughtTogether: 156,
+                suggestedDiscount: 15,
+                status: 'pending'
+              });
+            }
+            if (prods.length >= 4) {
+              suggestions.push({
+                id: '2',
+                products: [prods[2], prods[3]].map((p: Product) => ({ id: p.id, title: p.title, image: p.image })),
+                confidence: 0.87,
+                timesBoughtTogether: 98,
+                suggestedDiscount: 10,
+                status: 'pending'
+              });
+            }
+            if (prods.length >= 3) {
+              suggestions.push({
+                id: '3',
+                products: [prods[0], prods[1], prods[2]].map((p: Product) => ({ id: p.id, title: p.title, image: p.image })),
+                confidence: 0.78,
+                timesBoughtTogether: 67,
+                suggestedDiscount: 20,
+                status: 'pending'
+              });
+            }
+            setAiSuggestions(suggestions);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+
     fetchStore();
     fetchPreferences();
+    fetchProducts();
   }, [shop]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const updatePreference = async (key: string, value: boolean | string) => {
     const newPrefs = { ...preferences, [key]: value };
@@ -149,9 +222,35 @@ function DashboardContent() {
     }
   };
 
-  const filteredProducts = mockProducts.filter(p =>
+  const filteredProducts = products.filter(p =>
     p.title.toLowerCase().includes(productSearch.toLowerCase())
   );
+
+  // Bundle management functions
+  const toggleBundleActive = (bundleId: string) => {
+    setBundles(bundles.map(b =>
+      b.id === bundleId ? { ...b, isActive: !b.isActive } : b
+    ));
+    setOpenMenuId(null);
+  };
+
+  const deleteBundle = (bundleId: string) => {
+    if (confirm('Are you sure you want to delete this bundle?')) {
+      setBundles(bundles.filter(b => b.id !== bundleId));
+    }
+    setOpenMenuId(null);
+  };
+
+  const startEditBundle = (bundle: Bundle) => {
+    setEditingBundle(bundle);
+    setSelectedProducts(bundle.items);
+    setBundleName(bundle.name);
+    setBundleDescription(bundle.description);
+    setDiscountPercent(bundle.discountPercent);
+    setCreateStep(2);
+    setShowCreateModal(true);
+    setOpenMenuId(null);
+  };
 
   const addProductToBundle = (product: Product) => {
     if (selectedProducts.find(p => p.productId === product.id)) return;
@@ -179,20 +278,38 @@ function DashboardContent() {
   const bundlePrice = originalPrice * (1 - discountPercent / 100);
 
   const handleCreateBundle = () => {
-    const newBundle: Bundle = {
-      id: Date.now().toString(),
-      name: bundleName || `Bundle of ${selectedProducts.length} items`,
-      description: bundleDescription,
-      items: selectedProducts,
-      originalPrice,
-      bundlePrice,
-      discountPercent,
-      isActive: true,
-      timesPurchased: 0,
-      revenue: 0,
-      createdAt: new Date().toISOString()
-    };
-    setBundles([...bundles, newBundle]);
+    if (editingBundle) {
+      // Update existing bundle
+      setBundles(bundles.map(b =>
+        b.id === editingBundle.id
+          ? {
+              ...b,
+              name: bundleName || `Bundle of ${selectedProducts.length} items`,
+              description: bundleDescription,
+              items: selectedProducts,
+              originalPrice,
+              bundlePrice,
+              discountPercent,
+            }
+          : b
+      ));
+    } else {
+      // Create new bundle
+      const newBundle: Bundle = {
+        id: Date.now().toString(),
+        name: bundleName || `Bundle of ${selectedProducts.length} items`,
+        description: bundleDescription,
+        items: selectedProducts,
+        originalPrice,
+        bundlePrice,
+        discountPercent,
+        isActive: true,
+        timesPurchased: 0,
+        revenue: 0,
+        createdAt: new Date().toISOString()
+      };
+      setBundles([...bundles, newBundle]);
+    }
     resetCreateModal();
   };
 
@@ -204,6 +321,7 @@ function DashboardContent() {
     setBundleDescription('');
     setDiscountPercent(10);
     setProductSearch('');
+    setEditingBundle(null);
   };
 
   const acceptAISuggestion = (suggestion: AISuggestion) => {
@@ -213,7 +331,7 @@ function DashboardContent() {
       title: p.title,
       image: p.image,
       quantity: 1,
-      price: parseFloat(mockProducts.find(mp => mp.id === p.id)?.price || '0')
+      price: parseFloat(products.find(mp => mp.id === p.id)?.price || '0')
     })));
     setDiscountPercent(suggestion.suggestedDiscount);
     setBundleName(`${suggestion.products.map(p => p.title.split(' ')[0]).join(' + ')} Bundle`);
@@ -364,8 +482,12 @@ function DashboardContent() {
                       <div className="flex items-center gap-4">
                         <div className="flex -space-x-2">
                           {bundle.items.slice(0, 3).map((item, i) => (
-                            <div key={i} className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center text-xl border-2 border-slate-800">
-                              {item.image}
+                            <div key={i} className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center overflow-hidden border-2 border-slate-800">
+                              {item.image && item.image.startsWith('http') ? (
+                                <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-xl">{item.image || '📦'}</span>
+                              )}
                             </div>
                           ))}
                           {bundle.items.length > 3 && (
@@ -393,11 +515,59 @@ function DashboardContent() {
                         }`}>
                           {bundle.isActive ? 'Active' : 'Inactive'}
                         </span>
-                        <button className="p-2 hover:bg-white/10 rounded-lg transition">
-                          <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                          </svg>
-                        </button>
+                        <div className="relative" ref={openMenuId === bundle.id ? menuRef : null}>
+                          <button
+                            onClick={() => setOpenMenuId(openMenuId === bundle.id ? null : bundle.id)}
+                            className="p-2 hover:bg-white/10 rounded-lg transition"
+                          >
+                            <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                            </svg>
+                          </button>
+                          {openMenuId === bundle.id && (
+                            <div className="absolute right-0 top-full mt-1 w-48 bg-slate-700 border border-white/10 rounded-lg shadow-xl py-1 z-50">
+                              <button
+                                onClick={() => startEditBundle(bundle)}
+                                className="w-full px-4 py-2 text-left text-white hover:bg-white/10 flex items-center gap-2"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                Edit Bundle
+                              </button>
+                              <button
+                                onClick={() => toggleBundleActive(bundle.id)}
+                                className="w-full px-4 py-2 text-left text-white hover:bg-white/10 flex items-center gap-2"
+                              >
+                                {bundle.isActive ? (
+                                  <>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                    </svg>
+                                    Deactivate
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Activate
+                                  </>
+                                )}
+                              </button>
+                              <hr className="my-1 border-white/10" />
+                              <button
+                                onClick={() => deleteBundle(bundle.id)}
+                                className="w-full px-4 py-2 text-left text-red-400 hover:bg-white/10 flex items-center gap-2"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Delete Bundle
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -467,8 +637,12 @@ function DashboardContent() {
                       <div className="flex items-center gap-4">
                         <div className="flex -space-x-2">
                           {suggestion.products.map((product, i) => (
-                            <div key={i} className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center text-2xl border-2 border-slate-800">
-                              {product.image}
+                            <div key={i} className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center overflow-hidden border-2 border-slate-800">
+                              {product.image && product.image.startsWith('http') ? (
+                                <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-2xl">{product.image || '📦'}</span>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -523,8 +697,12 @@ function DashboardContent() {
                       <div className="flex items-center gap-3">
                         <div className="flex -space-x-1">
                           {suggestion.products.map((product, i) => (
-                            <div key={i} className="w-8 h-8 bg-white/10 rounded flex items-center justify-center text-sm border border-slate-800">
-                              {product.image}
+                            <div key={i} className="w-8 h-8 bg-white/10 rounded flex items-center justify-center overflow-hidden border border-slate-800">
+                              {product.image && product.image.startsWith('http') ? (
+                                <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-sm">{product.image || '📦'}</span>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -756,7 +934,7 @@ function DashboardContent() {
             {/* Modal Header */}
             <div className="p-6 border-b border-white/10">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-white">Create New Bundle</h2>
+                <h2 className="text-xl font-semibold text-white">{editingBundle ? 'Edit Bundle' : 'Create New Bundle'}</h2>
                 <button onClick={resetCreateModal} className="p-2 hover:bg-white/10 rounded-lg transition">
                   <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -806,7 +984,12 @@ function DashboardContent() {
                       <div className="flex flex-wrap gap-2">
                         {selectedProducts.map((product) => (
                           <span key={product.productId} className="px-3 py-1 bg-emerald-600/20 rounded-full text-white text-sm flex items-center gap-2">
-                            {product.image} {product.title}
+                            {product.image && product.image.startsWith('http') ? (
+                              <img src={product.image} alt={product.title} className="w-5 h-5 rounded object-cover" />
+                            ) : (
+                              <span>{product.image || '📦'}</span>
+                            )}
+                            {product.title}
                             <button onClick={() => removeProductFromBundle(product.productId)} className="hover:text-red-400">×</button>
                           </span>
                         ))}
@@ -814,33 +997,50 @@ function DashboardContent() {
                     </div>
                   )}
 
-                  <div className="grid gap-2 max-h-64 overflow-y-auto">
-                    {filteredProducts.map((product) => {
-                      const isSelected = selectedProducts.find(p => p.productId === product.id);
-                      return (
-                        <button
-                          key={product.id}
-                          onClick={() => isSelected ? removeProductFromBundle(product.id) : addProductToBundle(product)}
-                          className={`flex items-center justify-between p-3 rounded-lg border transition text-left ${
-                            isSelected
-                              ? 'bg-emerald-600/20 border-emerald-500/50'
-                              : 'bg-white/5 border-white/10 hover:border-white/20'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl">{product.image}</span>
-                            <div>
-                              <p className="text-white font-medium">{product.title}</p>
-                              <p className="text-white/60 text-sm">${product.price} • {product.inventory} in stock</p>
+                  {loadingProducts ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                      <span className="ml-3 text-white/60">Loading products...</span>
+                    </div>
+                  ) : filteredProducts.length === 0 ? (
+                    <div className="text-center py-12">
+                      <p className="text-white/60">{products.length === 0 ? 'No products found in your store' : 'No products match your search'}</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-2 max-h-64 overflow-y-auto">
+                      {filteredProducts.map((product) => {
+                        const isSelected = selectedProducts.find(p => p.productId === product.id);
+                        return (
+                          <button
+                            key={product.id}
+                            onClick={() => isSelected ? removeProductFromBundle(product.id) : addProductToBundle(product)}
+                            className={`flex items-center justify-between p-3 rounded-lg border transition text-left ${
+                              isSelected
+                                ? 'bg-emerald-600/20 border-emerald-500/50'
+                                : 'bg-white/5 border-white/10 hover:border-white/20'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center overflow-hidden">
+                                {product.image && product.image.startsWith('http') ? (
+                                  <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-2xl">{product.image || '📦'}</span>
+                                )}
+                              </div>
+                              <div>
+                                <p className="text-white font-medium">{product.title}</p>
+                                <p className="text-white/60 text-sm">${product.price} • {product.inventory} in stock</p>
+                              </div>
                             </div>
-                          </div>
-                          {isSelected && (
-                            <span className="text-emerald-400">✓</span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                            {isSelected && (
+                              <span className="text-emerald-400">✓</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -875,7 +1075,13 @@ function DashboardContent() {
                       {selectedProducts.map((product) => (
                         <div key={product.productId} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
                           <div className="flex items-center gap-3">
-                            <span className="text-xl">{product.image}</span>
+                            <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center overflow-hidden">
+                              {product.image && product.image.startsWith('http') ? (
+                                <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-xl">{product.image || '📦'}</span>
+                              )}
+                            </div>
                             <span className="text-white">{product.title}</span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -927,7 +1133,16 @@ function DashboardContent() {
                     <div className="space-y-2 mb-4">
                       {selectedProducts.map((product) => (
                         <div key={product.productId} className="flex items-center justify-between text-sm">
-                          <span className="text-white">{product.image} {product.title} × {product.quantity}</span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center overflow-hidden">
+                              {product.image && product.image.startsWith('http') ? (
+                                <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <span>{product.image || '📦'}</span>
+                              )}
+                            </div>
+                            <span className="text-white">{product.title} × {product.quantity}</span>
+                          </div>
                           <span className="text-white/60">${(product.price * product.quantity).toFixed(2)}</span>
                         </div>
                       ))}
@@ -979,7 +1194,7 @@ function DashboardContent() {
                   onClick={handleCreateBundle}
                   className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-white font-medium transition"
                 >
-                  Create Bundle
+                  {editingBundle ? 'Update Bundle' : 'Create Bundle'}
                 </button>
               )}
             </div>
