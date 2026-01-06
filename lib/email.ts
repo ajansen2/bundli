@@ -2,8 +2,8 @@ import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Use Resend's default domain for testing, or your verified domain
-const FROM_EMAIL = 'Bundli <onboarding@resend.dev>';
+// Using verified Argora domain for sending
+const FROM_EMAIL = 'Bundli <bundli@send.argora.ai>';
 
 export interface BundleSoldEmailData {
   storeName: string;
