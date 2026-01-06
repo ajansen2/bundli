@@ -188,9 +188,22 @@ function DashboardContent() {
       }
     };
 
+    const fetchBundles = async () => {
+      try {
+        const response = await fetch(`/api/bundles?shop=${shop}`);
+        if (response.ok) {
+          const data = await response.json();
+          setBundles(data.bundles || []);
+        }
+      } catch (error) {
+        console.error('Error fetching bundles:', error);
+      }
+    };
+
     fetchStore();
     fetchPreferences();
     fetchProducts();
+    fetchBundles();
   }, [shop]);
 
   // Close dropdown when clicking outside
@@ -227,18 +240,53 @@ function DashboardContent() {
   );
 
   // Bundle management functions
-  const toggleBundleActive = (bundleId: string) => {
+  const toggleBundleActive = async (bundleId: string) => {
+    const bundle = bundles.find(b => b.id === bundleId);
+    if (!bundle) return;
+
+    const newIsActive = !bundle.isActive;
     setBundles(bundles.map(b =>
-      b.id === bundleId ? { ...b, isActive: !b.isActive } : b
+      b.id === bundleId ? { ...b, isActive: newIsActive } : b
     ));
     setOpenMenuId(null);
+
+    try {
+      await fetch('/api/bundles', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bundleId, isActive: newIsActive }),
+      });
+    } catch (error) {
+      console.error('Error toggling bundle:', error);
+      // Revert on error
+      setBundles(bundles.map(b =>
+        b.id === bundleId ? { ...b, isActive: bundle.isActive } : b
+      ));
+    }
   };
 
-  const deleteBundle = (bundleId: string) => {
-    if (confirm('Are you sure you want to delete this bundle?')) {
-      setBundles(bundles.filter(b => b.id !== bundleId));
+  const deleteBundle = async (bundleId: string) => {
+    if (!confirm('Are you sure you want to delete this bundle?')) {
+      setOpenMenuId(null);
+      return;
     }
+
+    const bundleToDelete = bundles.find(b => b.id === bundleId);
+    setBundles(bundles.filter(b => b.id !== bundleId));
     setOpenMenuId(null);
+
+    try {
+      const response = await fetch(`/api/bundles?bundleId=${bundleId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete');
+    } catch (error) {
+      console.error('Error deleting bundle:', error);
+      // Revert on error
+      if (bundleToDelete) {
+        setBundles([...bundles]);
+      }
+    }
   };
 
   const startEditBundle = (bundle: Bundle) => {
@@ -277,40 +325,68 @@ function DashboardContent() {
   const originalPrice = selectedProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0);
   const bundlePrice = originalPrice * (1 - discountPercent / 100);
 
-  const handleCreateBundle = () => {
-    if (editingBundle) {
-      // Update existing bundle
-      setBundles(bundles.map(b =>
-        b.id === editingBundle.id
-          ? {
-              ...b,
-              name: bundleName || `Bundle of ${selectedProducts.length} items`,
-              description: bundleDescription,
-              items: selectedProducts,
-              originalPrice,
-              bundlePrice,
-              discountPercent,
-            }
-          : b
-      ));
-    } else {
-      // Create new bundle
-      const newBundle: Bundle = {
-        id: Date.now().toString(),
-        name: bundleName || `Bundle of ${selectedProducts.length} items`,
-        description: bundleDescription,
-        items: selectedProducts,
-        originalPrice,
-        bundlePrice,
-        discountPercent,
-        isActive: true,
-        timesPurchased: 0,
-        revenue: 0,
-        createdAt: new Date().toISOString()
-      };
-      setBundles([...bundles, newBundle]);
+  const [savingBundle, setSavingBundle] = useState(false);
+
+  const handleCreateBundle = async () => {
+    setSavingBundle(true);
+
+    try {
+      if (editingBundle) {
+        // Update existing bundle
+        await fetch('/api/bundles', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bundleId: editingBundle.id,
+            name: bundleName || `Bundle of ${selectedProducts.length} items`,
+            description: bundleDescription,
+            discountPercent,
+          }),
+        });
+
+        setBundles(bundles.map(b =>
+          b.id === editingBundle.id
+            ? {
+                ...b,
+                name: bundleName || `Bundle of ${selectedProducts.length} items`,
+                description: bundleDescription,
+                items: selectedProducts,
+                originalPrice,
+                bundlePrice,
+                discountPercent,
+              }
+            : b
+        ));
+      } else {
+        // Create new bundle via API
+        const response = await fetch('/api/bundles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shop,
+            name: bundleName || `Bundle of ${selectedProducts.length} items`,
+            description: bundleDescription,
+            items: selectedProducts,
+            originalPrice,
+            bundlePrice,
+            discountPercent,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setBundles([data.bundle, ...bundles]);
+        } else {
+          throw new Error('Failed to create bundle');
+        }
+      }
+      resetCreateModal();
+    } catch (error) {
+      console.error('Error saving bundle:', error);
+      alert('Failed to save bundle. Please try again.');
+    } finally {
+      setSavingBundle(false);
     }
-    resetCreateModal();
   };
 
   const resetCreateModal = () => {
@@ -1192,9 +1268,13 @@ function DashboardContent() {
               ) : (
                 <button
                   onClick={handleCreateBundle}
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-white font-medium transition"
+                  disabled={savingBundle}
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg text-white font-medium transition flex items-center gap-2"
                 >
-                  {editingBundle ? 'Update Bundle' : 'Create Bundle'}
+                  {savingBundle && (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  )}
+                  {savingBundle ? 'Saving...' : (editingBundle ? 'Update Bundle' : 'Create Bundle')}
                 </button>
               )}
             </div>
