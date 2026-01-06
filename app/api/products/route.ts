@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   try {
     // Get store access token from database
     const { data: store, error: storeError } = await supabase
-      .from('stores')
+      .from('bundle_stores')
       .select('access_token')
       .eq('shop_domain', shop)
       .single();
