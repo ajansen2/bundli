@@ -35,14 +35,14 @@ export async function POST(request: NextRequest) {
 
       case 'shop/redact':
         const { data: store } = await supabase
-          .from('bundle_stores')
+          .from('stores')
           .select('id')
           .eq('shop_domain', data.shop_domain)
           .single();
 
         if (store) {
           await supabase.from('bundles').delete().eq('store_id', store.id);
-          await supabase.from('bundle_stores').delete().eq('id', store.id);
+          await supabase.from('stores').delete().eq('id', store.id);
         }
         break;
     }

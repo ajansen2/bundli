@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { data, error } = await supabase
-      .from('bundle_stores')
+      .from('stores')
       .select('notification_email, notify_bundle_sold, notify_low_inventory, notify_weekly_summary')
       .eq('shop_domain', shop)
       .single();
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     if (notifyWeeklySummary !== undefined) updateData.notify_weekly_summary = notifyWeeklySummary;
 
     const { error } = await supabase
-      .from('bundle_stores')
+      .from('stores')
       .update(updateData)
       .eq('shop_domain', shop);
 

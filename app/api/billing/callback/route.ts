@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
     const { data: store } = await supabase
-      .from('bundle_stores')
+      .from('stores')
       .select('access_token')
       .eq('shop_domain', shop)
       .single();
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       );
 
       await supabase
-        .from('bundle_stores')
+        .from('stores')
         .update({ subscription_status: 'active', updated_at: new Date().toISOString() })
         .eq('shop_domain', shop);
     }

@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     const domain = shopDomain || data.domain || data.myshopify_domain;
 
     await supabase
-      .from('bundle_stores')
+      .from('stores')
       .update({ subscription_status: 'cancelled', updated_at: new Date().toISOString() })
       .eq('shop_domain', domain);
 

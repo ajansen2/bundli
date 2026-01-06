@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     // Get store
     const { data: store } = await supabase
-      .from('bundle_stores')
+      .from('stores')
       .select('id, access_token')
       .eq('shop_domain', shopDomain)
       .single();

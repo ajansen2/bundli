@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     );
 
     const { data: existingStore } = await supabase
-      .from('bundle_stores')
+      .from('stores')
       .select('*')
       .eq('shop_domain', shop)
       .maybeSingle();
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     let store;
     if (existingStore) {
       const { data } = await supabase
-        .from('bundle_stores')
+        .from('stores')
         .update({
           access_token: accessToken,
           store_name: shopInfo.name || shop,
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
       store = data;
     } else {
       const { data } = await supabase
-        .from('bundle_stores')
+        .from('stores')
         .insert({
           shop_domain: shop,
           shopify_store_id: shopInfo.id?.toString(),
