@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
 
     // Create billing charge ($19.99/month)
     const shopName = shop.replace('.myshopify.com', '');
-    const returnUrl = `https://admin.shopify.com/store/${shopName}/apps/bundlemanager/dashboard?billing=success&shop=${shop}&store_id=${store?.id}`;
+    const returnUrl = `https://admin.shopify.com/store/${shopName}/apps/${apiKey}?billing=success&shop=${shop}&store_id=${store?.id}`;
 
     const chargeResponse = await fetch(`https://${shop}/admin/api/2024-01/recurring_application_charges.json`, {
       method: 'POST',
