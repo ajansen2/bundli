@@ -1,0 +1,23 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "8f2aeab1f77c980796f055c053a8d5af"
+name = "Bundli"
+application_url = "https://bundli.vercel.app"
+embedded = true
+
+[webhooks]
+api_version = "2026-01"
+
+  [webhooks.privacy_compliance]
+  customer_deletion_url = "https://bundli.vercel.app/api/webhooks/compliance"
+  customer_data_request_url = "https://bundli.vercel.app/api/webhooks/compliance"
+  shop_deletion_url = "https://bundli.vercel.app/api/webhooks/compliance"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "write_inventory,read_inventory,read_orders,read_products,write_products"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [ "https://bundli.vercel.app/api/auth/shopify/callback" ]
