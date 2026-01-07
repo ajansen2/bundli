@@ -1311,12 +1311,16 @@ function DashboardContent() {
                 <button
                   onClick={handleCreateBundle}
                   disabled={savingBundle}
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg text-white font-medium transition flex items-center gap-2"
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg text-white font-medium transition flex items-center gap-2 min-w-[140px] justify-center"
                 >
-                  {savingBundle && (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  {savingBundle ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>{editingBundle ? 'Update Bundle' : 'Create Bundle'}</span>
                   )}
-                  {savingBundle ? 'Saving...' : (editingBundle ? 'Update Bundle' : 'Create Bundle')}
                 </button>
               )}
             </div>
