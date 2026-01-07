@@ -141,12 +141,6 @@ function DashboardContent() {
       setLoadingProducts(true);
       try {
         const response = await fetch(`/api/products?shop=${shop}`);
-        if (response.status === 500) {
-          // Token is invalid - redirect to OAuth to get fresh token
-          console.log('Invalid token, redirecting to OAuth...');
-          window.location.href = `/api/auth/shopify?shop=${shop}`;
-          return;
-        }
         if (response.ok) {
           const data = await response.json();
           setProducts(data.products || []);
