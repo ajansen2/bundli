@@ -10,9 +10,10 @@ function HomeContent() {
 
   useEffect(() => {
     if (shop) {
-      window.location.href = `/dashboard?shop=${shop}${host ? `&host=${host}` : ''}`;
+      // Always go through OAuth to ensure we have a valid token
+      window.location.href = `/api/auth/shopify?shop=${shop}`;
     }
-  }, [shop, host]);
+  }, [shop]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900/20 to-slate-900">
