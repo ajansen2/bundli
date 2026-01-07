@@ -72,12 +72,15 @@ export async function GET(request: NextRequest) {
 
     let store;
     if (existingStore) {
+      // Reset subscription status if it was cancelled (reinstall case)
+      const newStatus = existingStore.subscription_status === 'cancelled' ? 'trial' : existingStore.subscription_status;
       const { data } = await supabase
         .from('stores')
         .update({
           access_token: accessToken,
           store_name: shopInfo.name || shop,
           email: shopInfo.email,
+          subscription_status: newStatus,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingStore.id)
