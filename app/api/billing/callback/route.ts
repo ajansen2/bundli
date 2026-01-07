@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     if (!store) return NextResponse.json({ error: 'Store not found' }, { status: 404 });
 
     const chargeResponse = await fetch(
-      `https://${shop}/admin/api/2024-01/recurring_application_charges/${chargeId}.json`,
+      `https://${shop}/admin/api/2024-10/recurring_application_charges/${chargeId}.json`,
       { headers: { 'X-Shopify-Access-Token': store.access_token } }
     );
 
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     if (charge.status === 'accepted') {
       await fetch(
-        `https://${shop}/admin/api/2024-01/recurring_application_charges/${chargeId}/activate.json`,
+        `https://${shop}/admin/api/2024-10/recurring_application_charges/${chargeId}/activate.json`,
         {
           method: 'POST',
           headers: { 'X-Shopify-Access-Token': store.access_token, 'Content-Type': 'application/json' },

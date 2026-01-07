@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     const { access_token: accessToken } = await tokenResponse.json();
 
     // Get shop details
-    const shopResponse = await fetch(`https://${shop}/admin/api/2024-01/shop.json`, {
+    const shopResponse = await fetch(`https://${shop}/admin/api/2024-10/shop.json`, {
       headers: { 'X-Shopify-Access-Token': accessToken },
     });
     const { shop: shopInfo } = await shopResponse.json();
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
       const address = topic === 'app/uninstalled' ? `${webhookUrl}/uninstall` :
                       topic === 'orders/create' ? `${webhookUrl}/orders` :
                       `${webhookUrl}/compliance`;
-      await fetch(`https://${shop}/admin/api/2024-01/webhooks.json`, {
+      await fetch(`https://${shop}/admin/api/2024-10/webhooks.json`, {
         method: 'POST',
         headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
         body: JSON.stringify({ webhook: { topic, address, format: 'json' } }),
@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
     const shopName = shop.replace('.myshopify.com', '');
     const returnUrl = `https://admin.shopify.com/store/${shopName}/apps/${apiKey}?billing=success&shop=${shop}&store_id=${store?.id}`;
 
-    const chargeResponse = await fetch(`https://${shop}/admin/api/2024-01/recurring_application_charges.json`, {
+    const chargeResponse = await fetch(`https://${shop}/admin/api/2024-10/recurring_application_charges.json`, {
       method: 'POST',
       headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
       body: JSON.stringify({
