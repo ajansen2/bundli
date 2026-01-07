@@ -71,10 +71,16 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     let store;
+    console.log('DEBUG OAuth - shop:', shop);
+    console.log('DEBUG OAuth - existingStore found:', !!existingStore);
+    console.log('DEBUG OAuth - new accessToken starts with:', accessToken?.substring(0, 10) + '...');
+
     if (existingStore) {
       // Reset subscription status if it was cancelled (reinstall case)
       const newStatus = existingStore.subscription_status === 'cancelled' ? 'trial' : existingStore.subscription_status;
-      const { data } = await supabase
+      console.log('DEBUG OAuth - updating existing store, old status:', existingStore.subscription_status, '-> new status:', newStatus);
+
+      const { data, error: updateError } = await supabase
         .from('stores')
         .update({
           access_token: accessToken,
@@ -86,6 +92,8 @@ export async function GET(request: NextRequest) {
         .eq('id', existingStore.id)
         .select()
         .single();
+
+      console.log('DEBUG OAuth - update result:', !!data, 'error:', updateError);
       store = data;
     } else {
       const { data } = await supabase
