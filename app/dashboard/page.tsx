@@ -2,6 +2,8 @@
 
 import { useState, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
+import createApp from '@shopify/app-bridge';
+import { Redirect } from '@shopify/app-bridge/actions';
 
 interface Store {
   id: string;
@@ -142,15 +144,24 @@ function DashboardContent() {
       try {
         const response = await fetch(`/api/products?shop=${shop}`);
 
-        // Handle invalid token - redirect to OAuth
+        // Handle invalid token - redirect to OAuth using App Bridge
         if (response.status === 401) {
-          const authUrl = `${window.location.origin}/api/auth/shopify?shop=${shop}`;
-          // For embedded apps, use top-level redirect
-          if (window.top !== window.self) {
-            window.top?.location.assign(authUrl);
-          } else {
-            window.location.href = authUrl;
+          const host = searchParams.get('host');
+          if (host) {
+            try {
+              const app = createApp({
+                apiKey: process.env.NEXT_PUBLIC_SHOPIFY_API_KEY || '',
+                host: host,
+              });
+              const redirect = Redirect.create(app);
+              redirect.dispatch(Redirect.Action.REMOTE, `${window.location.origin}/api/auth/shopify?shop=${shop}`);
+              return;
+            } catch (e) {
+              console.error('App Bridge redirect failed:', e);
+            }
           }
+          // Fallback for non-embedded
+          window.location.href = `/api/auth/shopify?shop=${shop}`;
           return;
         }
 
