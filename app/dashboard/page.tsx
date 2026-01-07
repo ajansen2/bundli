@@ -141,6 +141,19 @@ function DashboardContent() {
       setLoadingProducts(true);
       try {
         const response = await fetch(`/api/products?shop=${shop}`);
+
+        // Handle invalid token - redirect to OAuth
+        if (response.status === 401) {
+          const authUrl = `${window.location.origin}/api/auth/shopify?shop=${shop}`;
+          // For embedded apps, use top-level redirect
+          if (window.top !== window.self) {
+            window.top?.location.assign(authUrl);
+          } else {
+            window.location.href = authUrl;
+          }
+          return;
+        }
+
         if (response.ok) {
           const data = await response.json();
           setProducts(data.products || []);

@@ -45,7 +45,12 @@ export async function GET(request: NextRequest) {
     );
 
     if (!response.ok) {
-      console.error('Shopify API error:', response.status, await response.text());
+      const errorText = await response.text();
+      console.error('Shopify API error:', response.status, errorText);
+      // Return 401 if token is invalid so frontend knows to re-auth
+      if (response.status === 401) {
+        return NextResponse.json({ error: 'Invalid token', needsReauth: true }, { status: 401 });
+      }
       return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 });
     }
 
