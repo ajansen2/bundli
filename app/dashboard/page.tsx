@@ -698,9 +698,9 @@ function DashboardContent() {
         {/* AI Suggestions Tab */}
         {activeTab === 'ai' && (
           <div className="space-y-6">
-            <div className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 backdrop-blur border border-purple-500/30 rounded-xl p-6">
-              <div className="flex items-center justify-between">
-                <div>
+            <div className="bg-gradient-to-r from-purple-600/30 to-blue-600/30 border border-purple-500/30 rounded-xl p-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
                   <h2 className="text-xl font-semibold text-white mb-2 flex items-center gap-2">
                     <span>🤖</span> AI Bundle Suggestions
                   </h2>
@@ -711,7 +711,7 @@ function DashboardContent() {
                 <button
                   onClick={runAIAnalysis}
                   disabled={analyzingOrders}
-                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg text-white font-medium transition flex items-center gap-2 whitespace-nowrap shrink-0"
+                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg text-white font-medium transition flex items-center gap-2 whitespace-nowrap"
                 >
                   {analyzingOrders ? (
                     <>
