@@ -485,6 +485,29 @@ function DashboardContent() {
     );
   }
 
+  // Show reinstall prompt if subscription is cancelled (app was uninstalled)
+  if (store?.subscription_status === 'cancelled') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900/10 to-slate-900 flex items-center justify-center">
+        <div className="max-w-md text-center p-8">
+          <div className="w-20 h-20 bg-emerald-600/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <span className="text-4xl">📦</span>
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-4">App Reinstall Required</h1>
+          <p className="text-white/60 mb-6">
+            It looks like Bundli was uninstalled from your store. To continue using the app, please reinstall it from the Shopify App Store.
+          </p>
+          <a
+            href={`/api/auth/shopify?shop=${shop}`}
+            className="inline-block px-6 py-3 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-white font-medium transition"
+          >
+            Reinstall Bundli
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900/10 to-slate-900">
       {/* Header */}
