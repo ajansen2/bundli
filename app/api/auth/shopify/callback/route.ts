@@ -3,15 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
 export async function GET(request: NextRequest) {
-  console.log('DEBUG OAuth CALLBACK - hit callback endpoint');
   try {
     const searchParams = request.nextUrl.searchParams;
     const code = searchParams.get('code');
     const shop = searchParams.get('shop');
     const state = searchParams.get('state');
     const hmac = searchParams.get('hmac');
-
-    console.log('DEBUG OAuth CALLBACK - shop:', shop, 'code:', !!code);
 
     if (!code || !shop) {
       return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
@@ -74,16 +71,11 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     let store;
-    console.log('DEBUG OAuth - shop:', shop);
-    console.log('DEBUG OAuth - existingStore found:', !!existingStore);
-    console.log('DEBUG OAuth - new accessToken starts with:', accessToken?.substring(0, 10) + '...');
-
     if (existingStore) {
       // Reset subscription status if it was cancelled (reinstall case)
       const newStatus = existingStore.subscription_status === 'cancelled' ? 'trial' : existingStore.subscription_status;
-      console.log('DEBUG OAuth - updating existing store, old status:', existingStore.subscription_status, '-> new status:', newStatus);
 
-      const { data, error: updateError } = await supabase
+      const { data } = await supabase
         .from('stores')
         .update({
           access_token: accessToken,
@@ -96,7 +88,6 @@ export async function GET(request: NextRequest) {
         .select()
         .single();
 
-      console.log('DEBUG OAuth - update result:', !!data, 'error:', updateError);
       store = data;
     } else {
       const { data } = await supabase

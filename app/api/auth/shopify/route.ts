@@ -4,7 +4,6 @@ import crypto from 'crypto';
 export async function GET(request: NextRequest) {
   try {
     const shop = request.nextUrl.searchParams.get('shop');
-    console.log('DEBUG OAuth INIT - starting OAuth for shop:', shop);
 
     if (!shop || !shop.match(/^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/)) {
       return NextResponse.json({ error: 'Invalid shop domain' }, { status: 400 });

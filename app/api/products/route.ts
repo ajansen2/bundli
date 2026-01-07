@@ -22,14 +22,7 @@ export async function GET(request: NextRequest) {
       .eq('shop_domain', shop)
       .single();
 
-    console.log('DEBUG products API - shop:', shop);
-    console.log('DEBUG products API - store found:', !!store);
-    console.log('DEBUG products API - subscription_status:', store?.subscription_status);
-    console.log('DEBUG products API - updated_at:', store?.updated_at);
-    console.log('DEBUG products API - token starts with:', store?.access_token?.substring(0, 10) + '...');
-
     if (storeError || !store?.access_token) {
-      console.log('DEBUG products API - storeError:', storeError);
       return NextResponse.json({ error: 'Store not found' }, { status: 404 });
     }
 
