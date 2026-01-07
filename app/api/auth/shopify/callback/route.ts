@@ -3,12 +3,15 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
 export async function GET(request: NextRequest) {
+  console.log('DEBUG OAuth CALLBACK - hit callback endpoint');
   try {
     const searchParams = request.nextUrl.searchParams;
     const code = searchParams.get('code');
     const shop = searchParams.get('shop');
     const state = searchParams.get('state');
     const hmac = searchParams.get('hmac');
+
+    console.log('DEBUG OAuth CALLBACK - shop:', shop, 'code:', !!code);
 
     if (!code || !shop) {
       return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
