@@ -10,9 +10,8 @@ function HomeContent() {
 
   useEffect(() => {
     if (shop) {
-      // Always go through auth check - it will redirect to dashboard if token valid,
-      // or through OAuth if token invalid/missing
-      window.location.href = `/api/auth/shopify?shop=${shop}${host ? `&host=${host}` : ''}`;
+      // Go to dashboard - it will handle auth redirect via App Bridge if needed
+      window.location.href = `/dashboard?shop=${shop}${host ? `&host=${host}` : ''}`;
     }
   }, [shop, host]);
 
