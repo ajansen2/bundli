@@ -144,8 +144,8 @@ function DashboardContent() {
       try {
         const response = await fetch(`/api/products?shop=${shop}`);
 
-        // Handle invalid token - redirect to OAuth using App Bridge
-        if (response.status === 401) {
+        // Handle invalid token (401) or store not found (404) - redirect to OAuth
+        if (response.status === 401 || response.status === 404) {
           const host = searchParams.get('host');
           if (host) {
             try {
