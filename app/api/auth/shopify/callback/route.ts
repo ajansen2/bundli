@@ -123,31 +123,79 @@ export async function GET(request: NextRequest) {
 
     // Create billing charge ($19.99/month)
     const shopName = shop.replace('.myshopify.com', '');
+    const isTestCharge = shop.includes('-test') || shop.includes('development') || shop.includes('dev-');
     const returnUrl = `https://admin.shopify.com/store/${shopName}/apps/${apiKey}?billing=success&shop=${shop}&store_id=${store?.id}`;
 
-    const chargeResponse = await fetch(`https://${shop}/admin/api/2024-10/recurring_application_charges.json`, {
-      method: 'POST',
-      headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        recurring_application_charge: {
-          name: 'Bundle Manager Pro',
-          price: 19.99,
-          trial_days: 7,
-          return_url: returnUrl,
-          test: shop.includes('-test'),
-        }
-      })
+    console.log('💰 Checking for existing charges...');
+
+    // Check for existing pending or active charges
+    const existingChargesResponse = await fetch(`https://${shop}/admin/api/2024-10/recurring_application_charges.json`, {
+      headers: { 'X-Shopify-Access-Token': accessToken },
     });
 
-    if (chargeResponse.ok) {
-      const { recurring_application_charge } = await chargeResponse.json();
-      const response = NextResponse.redirect(recurring_application_charge.confirmation_url);
-      response.cookies.delete('shopify_oauth_state');
-      response.cookies.delete('shopify_oauth_shop');
-      return response;
+    let shouldCreateCharge = true;
+    if (existingChargesResponse.ok) {
+      const existingCharges = await existingChargesResponse.json();
+      console.log('💰 Existing charges:', JSON.stringify(existingCharges.recurring_application_charges?.map((c: any) => ({ id: c.id, status: c.status, name: c.name }))));
+
+      // If there's a pending charge, redirect to its confirmation URL
+      const pendingCharge = existingCharges.recurring_application_charges?.find(
+        (c: any) => c.status === 'pending'
+      );
+      if (pendingCharge) {
+        console.log('💰 Found existing pending charge, redirecting to confirmation');
+        const response = NextResponse.redirect(pendingCharge.confirmation_url);
+        response.cookies.delete('shopify_oauth_state');
+        response.cookies.delete('shopify_oauth_shop');
+        return response;
+      }
+
+      // If there's an active charge, skip billing creation
+      const activeCharge = existingCharges.recurring_application_charges?.find(
+        (c: any) => c.status === 'active'
+      );
+      if (activeCharge) {
+        console.log('✅ Already has active billing charge:', activeCharge.id);
+        shouldCreateCharge = false;
+      }
+    } else {
+      console.log('💰 Failed to fetch existing charges:', existingChargesResponse.status);
     }
 
-    const shopifyAdminUrl = `https://admin.shopify.com/store/${shopName}/apps/${apiKey}`;
+    if (shouldCreateCharge) {
+      console.log('💰 Creating new billing charge...');
+      const chargeResponse = await fetch(`https://${shop}/admin/api/2024-10/recurring_application_charges.json`, {
+        method: 'POST',
+        headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recurring_application_charge: {
+            name: 'Bundle Manager Pro',
+            price: 19.99,
+            trial_days: 7,
+            return_url: returnUrl,
+            ...(isTestCharge && { test: true }),
+          }
+        })
+      });
+
+      console.log('💰 Billing response status:', chargeResponse.status);
+
+      if (chargeResponse.ok) {
+        const { recurring_application_charge } = await chargeResponse.json();
+        console.log('✅ Billing charge created, redirecting to confirmation');
+        const response = NextResponse.redirect(recurring_application_charge.confirmation_url);
+        response.cookies.delete('shopify_oauth_state');
+        response.cookies.delete('shopify_oauth_shop');
+        return response;
+      } else {
+        const errorText = await chargeResponse.text();
+        console.error('❌ Billing charge failed:', chargeResponse.status, errorText);
+      }
+    }
+
+    // Go to dashboard if already has active charge or billing creation fails
+    console.log('📍 Redirecting to dashboard');
+    const shopifyAdminUrl = `https://admin.shopify.com/store/${shopName}/apps/${apiKey}?shop=${shop}`;
     const response = NextResponse.redirect(shopifyAdminUrl);
     response.cookies.delete('shopify_oauth_state');
     response.cookies.delete('shopify_oauth_shop');
