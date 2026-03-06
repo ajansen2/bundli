@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireActiveSubscription } from '@/lib/check-subscription';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,6 +26,12 @@ export async function GET(request: NextRequest) {
 
     if (!store) {
       return NextResponse.json({ error: 'Store not found' }, { status: 404 });
+    }
+
+    // Check subscription status
+    const subscriptionCheck = await requireActiveSubscription(store.id);
+    if ('error' in subscriptionCheck) {
+      return subscriptionCheck.error;
     }
 
     // Get bundles with their items
@@ -98,6 +105,12 @@ export async function POST(request: NextRequest) {
 
     if (!store) {
       return NextResponse.json({ error: 'Store not found' }, { status: 404 });
+    }
+
+    // Check subscription status before allowing bundle creation
+    const subscriptionCheck = await requireActiveSubscription(store.id);
+    if ('error' in subscriptionCheck) {
+      return subscriptionCheck.error;
     }
 
     const bundleName = name || `Bundle of ${items.length} items`;
