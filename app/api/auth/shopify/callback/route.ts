@@ -108,23 +108,28 @@ export async function GET(request: NextRequest) {
 
     // Register webhooks
     const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks`;
-    const webhookTopics = ['app/uninstalled', 'customers/data_request', 'customers/redact', 'shop/redact', 'orders/create'];
+    const webhookTopics = ['app/uninstalled', 'customers/data_request', 'customers/redact', 'shop/redact', 'orders/create', 'app_subscriptions/update'];
 
     for (const topic of webhookTopics) {
       const address = topic === 'app/uninstalled' ? `${webhookUrl}/uninstall` :
                       topic === 'orders/create' ? `${webhookUrl}/orders` :
+                      topic === 'app_subscriptions/update' ? `${webhookUrl}/subscription` :
                       `${webhookUrl}/compliance`;
-      await fetch(`https://${shop}/admin/api/2024-10/webhooks.json`, {
+      const result = await fetch(`https://${shop}/admin/api/2024-10/webhooks.json`, {
         method: 'POST',
         headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
         body: JSON.stringify({ webhook: { topic, address, format: 'json' } }),
       });
+      if (topic === 'app_subscriptions/update') {
+        console.log('💰 Subscription webhook registration:', result.ok ? '✅' : '❌');
+      }
     }
 
     // Create billing charge ($19.99/month)
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${request.headers.get('host')}`;
     const shopName = shop.replace('.myshopify.com', '');
     const isTestCharge = shop.includes('-test') || shop.includes('development') || shop.includes('dev-');
-    const returnUrl = `https://admin.shopify.com/store/${shopName}/apps/${apiKey}?billing=success&shop=${shop}&store_id=${store?.id}`;
+    const returnUrl = `${appUrl}/api/billing/callback?shop=${shop}&store_id=${store?.id}`;
 
     console.log('💰 Checking for existing charges...');
 
