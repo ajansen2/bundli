@@ -13,42 +13,31 @@ import NumberFlow from "@number-flow/react";
 import { AnimatePresence, motion, LayoutGroup } from "motion/react";
 import { useState } from "react";
 
-// Change Here
 const plans = [
   {
-    id: "plus",
-    name: "Plus",
-    description: "solo",
-    monthlyPrice: 8.99,
-    yearlyPrice: 6.99,
+    id: "free",
+    name: "Free",
+    description: "getting started",
+    monthlyPrice: 0,
+    yearlyPrice: 0,
     features: [
-      "1TB of Space",
-      "30 days of file recovery",
-      "256-bit AES and SSL/TLS",
+      "3 active bundles",
+      "Basic bundle types",
+      "Manual pricing",
     ],
   },
   {
-    id: "standard",
-    name: "Standard",
-    description: "startup",
-    monthlyPrice: 12.99,
-    yearlyPrice: 9.99,
+    id: "pro",
+    name: "Pro",
+    description: "growing stores",
+    monthlyPrice: 19.99,
+    yearlyPrice: 15.99,
     features: [
-      "1TB of Space",
-      "30 days of file recovery",
-      "256-bit AES and SSL/TLS",
-    ],
-  },
-  {
-    id: "advanced",
-    name: "Advanced",
-    description: "teams",
-    monthlyPrice: 24.99,
-    yearlyPrice: 19.99,
-    features: [
-      "1TB of Space",
-      "30 days of file recovery",
-      "256-bit AES and SSL/TLS",
+      "Unlimited bundles",
+      "All bundle types",
+      "Dynamic pricing",
+      "AI suggestions",
+      "Analytics dashboard",
     ],
   },
 ];
@@ -64,8 +53,8 @@ function PricingCard() {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">(
     "monthly"
   );
-  const [selectedPlan, setSelectedPlan] = useState("standard");
-  const [userCount, setUserCount] = useState(3);
+  const [selectedPlan, setSelectedPlan] = useState("pro");
+  const [storeCount, setStoreCount] = useState(1);
 
   return (
     <div className="w-full max-w-[450px] flex flex-col gap-6 p-5 px-4 sm:p-6 rounded-4xl sm:rounded-2xl border border-border bg-background shadow-sm transition-colors duration-300 not-prose">
@@ -231,10 +220,10 @@ function PricingCard() {
                               </div>
                               <div className="flex flex-col">
                                 <span className="text-base font-medium  text-foreground leading-none">
-                                  Users
+                                  Stores
                                 </span>
                                 <span className="text-sm text-muted-foreground mt-0.5">
-                                  Starting at {userCount} users
+                                  Starting at {storeCount} store
                                 </span>
                               </div>
                             </div>
@@ -243,19 +232,19 @@ function PricingCard() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setUserCount(Math.max(1, userCount - 1));
+                                  setStoreCount(Math.max(1, storeCount - 1));
                                 }}
                                 className="p-1.5 rounded-lg hover:bg-background hover:shadow-sm transition-all text-muted-foreground/60 hover:text-foreground active:scale-95"
                               >
                                 <HugeiconsIcon icon={MinusSignIcon} size={14} />
                               </button>
                               <span className="text-sm  w-4 text-center tabular-nums text-foreground/80">
-                                <NumberFlow value={userCount} />
+                                <NumberFlow value={storeCount} />
                               </span>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setUserCount(userCount + 1);
+                                  setStoreCount(storeCount + 1);
                                 }}
                                 className="p-1.5 rounded-lg hover:bg-background hover:shadow-sm transition-all text-muted-foreground/60 hover:text-foreground active:scale-95"
                               >
