@@ -1215,7 +1215,16 @@ function DashboardContent() {
               <p className="text-white/60 text-sm mb-4">
                 Uninstalling will remove all your bundles and data. This action cannot be undone.
               </p>
-              <button className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 rounded-lg text-red-400 text-sm transition">
+              <button
+                onClick={() => {
+                  const shopDomain = shop || store?.shop_domain;
+                  if (shopDomain) {
+                    const storeName = shopDomain.replace('.myshopify.com', '');
+                    window.top?.location.assign(`https://admin.shopify.com/store/${storeName}/settings/apps?tab=installed`);
+                  }
+                }}
+                className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 rounded-lg text-red-400 text-sm transition"
+              >
                 Uninstall App
               </button>
             </div>

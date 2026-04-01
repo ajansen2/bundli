@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// BundleManager API key fallback
+const getApiKey = () => process.env.SHOPIFY_API_KEY || '8f2aeab1f77c980796f055c053a8d5af';
+
 export async function GET(request: NextRequest) {
   try {
     const shop = request.nextUrl.searchParams.get('shop');
@@ -9,7 +12,7 @@ export async function GET(request: NextRequest) {
     console.log('💰 Billing callback:', { shop, chargeId });
 
     const shopName = shop?.replace('.myshopify.com', '') || '';
-    const redirectUrl = `https://admin.shopify.com/store/${shopName}/apps/${process.env.SHOPIFY_API_KEY}`;
+    const redirectUrl = `https://admin.shopify.com/store/${shopName}/apps/${getApiKey()}`;
 
     if (!shop || !chargeId) {
       return NextResponse.redirect(`${redirectUrl}?billing=error`);
@@ -90,6 +93,6 @@ export async function GET(request: NextRequest) {
     console.error('Billing callback error:', error);
     const shop = request.nextUrl.searchParams.get('shop');
     const shopName = shop?.replace('.myshopify.com', '') || '';
-    return NextResponse.redirect(`https://admin.shopify.com/store/${shopName}/apps/${process.env.SHOPIFY_API_KEY}?billing=error`);
+    return NextResponse.redirect(`https://admin.shopify.com/store/${shopName}/apps/${getApiKey()}?billing=error`);
   }
 }
