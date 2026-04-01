@@ -81,6 +81,35 @@ function DashboardContent() {
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'bundles' | 'ai' | 'analytics' | 'settings'>('bundles');
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(1);
+
+  // Calculate trial days left
+  const getTrialDaysLeft = () => {
+    if (!store?.trial_ends_at) return null;
+    const trialEnd = new Date(store.trial_ends_at);
+    const now = new Date();
+    const daysLeft = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, daysLeft);
+  };
+
+  // DISABLED: Onboarding tutorial - was showing too frequently
+  // Keeping the state but never showing it
+  useEffect(() => {
+    // Always mark as seen to prevent any chance of showing
+    if (store) {
+      localStorage.setItem(`bundlemanager_onboarding_${store.id}`, 'true');
+    }
+    // Never show onboarding - setShowOnboarding(false) is the default
+  }, [store]);
+
+  const completeOnboarding = () => {
+    if (store) {
+      localStorage.setItem(`bundlemanager_onboarding_${store.id}`, 'true');
+    }
+    setShowOnboarding(false);
+    setOnboardingStep(1);
+  };
 
   // Products state
   const [products, setProducts] = useState<Product[]>([]);
@@ -495,7 +524,7 @@ function DashboardContent() {
 
   if (!shop) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <p className="text-white">Missing shop parameter</p>
       </div>
     );
@@ -503,24 +532,146 @@ function DashboardContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900/10 to-slate-900">
+    <div className="min-h-screen bg-zinc-950">
+      {/* Onboarding Modal */}
+      {showOnboarding && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+            <div className="flex justify-center gap-2 mb-6">
+              {[1, 2, 3].map((step) => (
+                <div
+                  key={step}
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    step === onboardingStep ? 'bg-emerald-500 w-6' : step < onboardingStep ? 'bg-emerald-500' : 'bg-zinc-700'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {onboardingStep === 1 && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl">📦</span>
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">Welcome to Bundli!</h2>
+                <p className="text-zinc-400 mb-6">
+                  Create product bundles to increase average order value and delight customers with great deals.
+                </p>
+              </div>
+            )}
+
+            {onboardingStep === 2 && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl">🤖</span>
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">AI-Powered Suggestions</h2>
+                <p className="text-zinc-400 mb-6">
+                  Our AI analyzes your orders to suggest products that are frequently bought together.
+                </p>
+              </div>
+            )}
+
+            {onboardingStep === 3 && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl">💰</span>
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">Track Your Revenue</h2>
+                <p className="text-zinc-400 mb-6">
+                  See how your bundles perform with detailed analytics on sales and revenue.
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              {onboardingStep > 1 && (
+                <button
+                  onClick={() => setOnboardingStep(onboardingStep - 1)}
+                  className="flex-1 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-medium transition"
+                >
+                  Back
+                </button>
+              )}
+              {onboardingStep < 3 ? (
+                <button
+                  onClick={() => setOnboardingStep(onboardingStep + 1)}
+                  className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium transition"
+                >
+                  Next
+                </button>
+              ) : (
+                <button
+                  onClick={completeOnboarding}
+                  className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium transition"
+                >
+                  Get Started
+                </button>
+              )}
+            </div>
+
+            {onboardingStep < 3 && (
+              <button
+                onClick={completeOnboarding}
+                className="w-full mt-3 text-zinc-500 hover:text-zinc-400 text-sm transition"
+              >
+                Skip tutorial
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <header className="border-b border-white/10 bg-black/20 backdrop-blur sticky top-0 z-40">
+      <header className="border-b border-zinc-800 bg-zinc-900 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h1 className="text-xl font-bold text-white">Bundli</h1>
-            {store && (
-              <span className="px-2 py-1 text-xs rounded bg-emerald-600/20 text-emerald-300 border border-emerald-500/30">
-                {store.subscription_status === 'trial' ? '7-Day Trial' : 'Pro'}
-              </span>
-            )}
+            {/* Help Button */}
+            <button
+              onClick={() => setShowOnboarding(true)}
+              className="flex items-center gap-1.5 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 text-xs font-medium transition"
+              title="Quick Start Guide"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Help
+            </button>
+            {/* Trial Badge */}
+            {(() => {
+              const trialDays = getTrialDaysLeft();
+              if (store?.subscription_status === 'active') {
+                return (
+                  <span className="px-2 py-1 text-xs rounded bg-green-600/20 text-green-300 border border-green-500/30">
+                    Pro
+                  </span>
+                );
+              }
+              if (trialDays !== null) {
+                return (
+                  <span className={`px-2 py-1 text-xs rounded ${
+                    trialDays <= 3
+                      ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  }`}>
+                    {trialDays} day{trialDays !== 1 ? 's' : ''} left
+                  </span>
+                );
+              }
+              return (
+                <span className="px-2 py-1 text-xs rounded bg-emerald-600/20 text-emerald-300 border border-emerald-500/30">
+                  Trial
+                </span>
+              );
+            })()}
           </div>
           <div className="text-white/60 text-sm">{store?.store_name || shop}</div>
         </div>
@@ -557,19 +708,19 @@ function DashboardContent() {
           <div className="space-y-6">
             {/* Stats */}
             <div className="grid grid-cols-4 gap-4">
-              <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-5">
+              <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-5">
                 <p className="text-white/60 text-sm mb-1">Active Bundles</p>
                 <p className="text-3xl font-bold text-white">{bundles.filter(b => b.isActive).length}</p>
               </div>
-              <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-5">
+              <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-5">
                 <p className="text-white/60 text-sm mb-1">Total Sales</p>
                 <p className="text-3xl font-bold text-white">{bundles.reduce((sum, b) => sum + b.timesPurchased, 0)}</p>
               </div>
-              <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-5">
+              <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-5">
                 <p className="text-white/60 text-sm mb-1">Revenue</p>
                 <p className="text-3xl font-bold text-white">${bundles.reduce((sum, b) => sum + b.revenue, 0).toFixed(2)}</p>
               </div>
-              <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-5">
+              <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-5">
                 <p className="text-white/60 text-sm mb-1">Avg. Discount</p>
                 <p className="text-3xl font-bold text-white">
                   {bundles.length > 0 ? Math.round(bundles.reduce((sum, b) => sum + b.discountPercent, 0) / bundles.length) : 0}%
@@ -578,7 +729,7 @@ function DashboardContent() {
             </div>
 
             {/* Bundle List */}
-            <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-6">
+            <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-semibold text-white">Your Bundles</h2>
                 <button
@@ -608,7 +759,7 @@ function DashboardContent() {
                     </button>
                     <button
                       onClick={() => setActiveTab('ai')}
-                      className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white font-medium transition"
+                      className="px-6 py-2 bg-zinc-800 hover:bg-white/20 rounded-lg text-white font-medium transition"
                     >
                       View AI Suggestions
                     </button>
@@ -619,12 +770,12 @@ function DashboardContent() {
                   {bundles.map((bundle) => (
                     <div
                       key={bundle.id}
-                      className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10 hover:border-white/20 transition"
+                      className="flex items-center justify-between p-4 bg-zinc-900/50 rounded-lg border border-zinc-800 hover:border-white/20 transition"
                     >
                       <div className="flex items-center gap-4">
                         <div className="flex -space-x-2">
                           {bundle.items.slice(0, 3).map((item, i) => (
-                            <div key={i} className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center overflow-hidden border-2 border-slate-800">
+                            <div key={i} className="w-10 h-10 bg-zinc-800 rounded-lg flex items-center justify-center overflow-hidden border-2 border-slate-800">
                               {item.image && item.image.startsWith('http') ? (
                                 <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
                               ) : (
@@ -633,7 +784,7 @@ function DashboardContent() {
                             </div>
                           ))}
                           {bundle.items.length > 3 && (
-                            <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center text-xs text-white/60 border-2 border-slate-800">
+                            <div className="w-10 h-10 bg-zinc-800 rounded-lg flex items-center justify-center text-xs text-white/60 border-2 border-slate-800">
                               +{bundle.items.length - 3}
                             </div>
                           )}
@@ -653,24 +804,24 @@ function DashboardContent() {
                         <span className={`px-3 py-1 text-xs rounded-full ${
                           bundle.isActive
                             ? 'bg-emerald-500/20 text-emerald-300'
-                            : 'bg-white/10 text-white/60'
+                            : 'bg-zinc-800 text-white/60'
                         }`}>
                           {bundle.isActive ? 'Active' : 'Inactive'}
                         </span>
                         <div className="relative" ref={openMenuId === bundle.id ? menuRef : null}>
                           <button
                             onClick={() => setOpenMenuId(openMenuId === bundle.id ? null : bundle.id)}
-                            className="p-2 hover:bg-white/10 rounded-lg transition"
+                            className="p-2 hover:bg-zinc-800 rounded-lg transition"
                           >
                             <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                             </svg>
                           </button>
                           {openMenuId === bundle.id && (
-                            <div className="absolute right-0 top-full mt-1 w-48 bg-slate-700 border border-white/10 rounded-lg shadow-xl py-1 z-50">
+                            <div className="absolute right-0 top-full mt-1 w-48 bg-slate-700 border border-zinc-800 rounded-lg shadow-xl py-1 z-50">
                               <button
                                 onClick={() => startEditBundle(bundle)}
-                                className="w-full px-4 py-2 text-left text-white hover:bg-white/10 flex items-center gap-2"
+                                className="w-full px-4 py-2 text-left text-white hover:bg-zinc-800 flex items-center gap-2"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -679,7 +830,7 @@ function DashboardContent() {
                               </button>
                               <button
                                 onClick={() => toggleBundleActive(bundle.id)}
-                                className="w-full px-4 py-2 text-left text-white hover:bg-white/10 flex items-center gap-2"
+                                className="w-full px-4 py-2 text-left text-white hover:bg-zinc-800 flex items-center gap-2"
                               >
                                 {bundle.isActive ? (
                                   <>
@@ -697,10 +848,10 @@ function DashboardContent() {
                                   </>
                                 )}
                               </button>
-                              <hr className="my-1 border-white/10" />
+                              <hr className="my-1 border-zinc-800" />
                               <button
                                 onClick={() => deleteBundle(bundle.id)}
-                                className="w-full px-4 py-2 text-left text-red-400 hover:bg-white/10 flex items-center gap-2"
+                                className="w-full px-4 py-2 text-left text-red-400 hover:bg-zinc-800 flex items-center gap-2"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -756,7 +907,7 @@ function DashboardContent() {
 
             <div className="grid gap-4">
               {aiSuggestions.filter(s => s.status === 'pending').length === 0 ? (
-                <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-12 text-center">
+                <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-12 text-center">
                   <div className="w-16 h-16 bg-purple-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
                     <span className="text-3xl">🔍</span>
                   </div>
@@ -773,13 +924,13 @@ function DashboardContent() {
                 aiSuggestions.filter(s => s.status === 'pending').map((suggestion) => (
                   <div
                     key={suggestion.id}
-                    className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-5 hover:border-purple-500/30 transition"
+                    className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-5 hover:border-purple-500/30 transition"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className="flex -space-x-2">
                           {suggestion.products.map((product, i) => (
-                            <div key={i} className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center overflow-hidden border-2 border-slate-800">
+                            <div key={i} className="w-12 h-12 bg-zinc-800 rounded-lg flex items-center justify-center overflow-hidden border-2 border-slate-800">
                               {product.image && product.image.startsWith('http') ? (
                                 <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
                               ) : (
@@ -809,7 +960,7 @@ function DashboardContent() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => dismissAISuggestion(suggestion.id)}
-                          className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white/60 text-sm transition"
+                          className="px-4 py-2 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-white/60 text-sm transition"
                         >
                           Dismiss
                         </button>
@@ -834,12 +985,12 @@ function DashboardContent() {
                   {aiSuggestions.filter(s => s.status === 'dismissed').map((suggestion) => (
                     <div
                       key={suggestion.id}
-                      className="bg-white/5 backdrop-blur border border-white/10 rounded-lg p-3 flex items-center justify-between"
+                      className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-lg p-3 flex items-center justify-between"
                     >
                       <div className="flex items-center gap-3">
                         <div className="flex -space-x-1">
                           {suggestion.products.map((product, i) => (
-                            <div key={i} className="w-8 h-8 bg-white/10 rounded flex items-center justify-center overflow-hidden border border-slate-800">
+                            <div key={i} className="w-8 h-8 bg-zinc-800 rounded flex items-center justify-center overflow-hidden border border-slate-800">
                               {product.image && product.image.startsWith('http') ? (
                                 <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
                               ) : (
@@ -868,22 +1019,22 @@ function DashboardContent() {
         {activeTab === 'analytics' && (
           <div className="space-y-6">
             <div className="grid grid-cols-4 gap-4">
-              <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-5">
+              <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-5">
                 <p className="text-white/60 text-sm mb-1">Total Revenue</p>
                 <p className="text-3xl font-bold text-white">$0.00</p>
                 <p className="text-emerald-400 text-sm mt-1">+0% vs last month</p>
               </div>
-              <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-5">
+              <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-5">
                 <p className="text-white/60 text-sm mb-1">Bundles Sold</p>
                 <p className="text-3xl font-bold text-white">0</p>
                 <p className="text-emerald-400 text-sm mt-1">+0% vs last month</p>
               </div>
-              <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-5">
+              <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-5">
                 <p className="text-white/60 text-sm mb-1">Avg. Order Value</p>
                 <p className="text-3xl font-bold text-white">$0.00</p>
                 <p className="text-white/40 text-sm mt-1">No data yet</p>
               </div>
-              <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-5">
+              <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-5">
                 <p className="text-white/60 text-sm mb-1">Conversion Rate</p>
                 <p className="text-3xl font-bold text-white">0%</p>
                 <p className="text-white/40 text-sm mt-1">No data yet</p>
@@ -891,7 +1042,7 @@ function DashboardContent() {
             </div>
 
             {/* Chart placeholder */}
-            <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-6">
+            <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-6">
               <h3 className="text-white font-semibold mb-4">Revenue Over Time</h3>
               <div className="h-64 flex items-center justify-center border border-dashed border-white/20 rounded-lg">
                 <div className="text-center">
@@ -902,7 +1053,7 @@ function DashboardContent() {
             </div>
 
             {/* Top Bundles */}
-            <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-6">
+            <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-6">
               <h3 className="text-white font-semibold mb-4">Top Performing Bundles</h3>
               {bundles.length === 0 ? (
                 <div className="text-center py-8">
@@ -911,7 +1062,7 @@ function DashboardContent() {
               ) : (
                 <div className="space-y-3">
                   {bundles.sort((a, b) => b.revenue - a.revenue).slice(0, 5).map((bundle, i) => (
-                    <div key={bundle.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                    <div key={bundle.id} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg">
                       <div className="flex items-center gap-3">
                         <span className="text-white/40 text-sm w-6">#{i + 1}</span>
                         <span className="text-white font-medium">{bundle.name}</span>
@@ -932,7 +1083,7 @@ function DashboardContent() {
         {activeTab === 'settings' && (
           <div className="space-y-6 max-w-2xl">
             {/* Billing */}
-            <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-6">
+            <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-6">
               <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
                 <span>💳</span> Billing & Subscription
               </h3>
@@ -946,11 +1097,11 @@ function DashboardContent() {
                 </div>
               </div>
               <div className="space-y-3">
-                <div className="flex items-center justify-between py-3 border-b border-white/10">
+                <div className="flex items-center justify-between py-3 border-b border-zinc-800">
                   <span className="text-white/60">Plan</span>
                   <span className="text-white font-medium">Pro - $19.99/month</span>
                 </div>
-                <div className="flex items-center justify-between py-3 border-b border-white/10">
+                <div className="flex items-center justify-between py-3 border-b border-zinc-800">
                   <span className="text-white/60">Billing cycle</span>
                   <span className="text-white">Monthly</span>
                 </div>
@@ -962,16 +1113,16 @@ function DashboardContent() {
             </div>
 
             {/* Store Info */}
-            <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-6">
+            <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-6">
               <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
                 <span>🏪</span> Store Information
               </h3>
               <div className="space-y-3">
-                <div className="flex items-center justify-between py-3 border-b border-white/10">
+                <div className="flex items-center justify-between py-3 border-b border-zinc-800">
                   <span className="text-white/60">Store</span>
                   <span className="text-white">{store?.store_name || shop}</span>
                 </div>
-                <div className="flex items-center justify-between py-3 border-b border-white/10">
+                <div className="flex items-center justify-between py-3 border-b border-zinc-800">
                   <span className="text-white/60">Domain</span>
                   <span className="text-white">{shop}</span>
                 </div>
@@ -983,7 +1134,7 @@ function DashboardContent() {
             </div>
 
             {/* Email Notifications */}
-            <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-6">
+            <div className="bg-zinc-900/50 backdrop-blur border border-zinc-800 rounded-xl p-6">
               <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
                 <span>📧</span> Email Notifications
                 {savingPrefs && <span className="text-xs text-white/40 ml-2">Saving...</span>}
@@ -998,7 +1149,7 @@ function DashboardContent() {
                   onChange={(e) => setPreferences({ ...preferences, notificationEmail: e.target.value })}
                   onBlur={(e) => updatePreference('notificationEmail', e.target.value)}
                   placeholder="your@email.com"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-emerald-500"
                 />
                 <p className="text-white/40 text-xs mt-2">We'll send notifications to this email address</p>
               </div>
@@ -1072,12 +1223,12 @@ function DashboardContent() {
       {/* Create Bundle Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-white/10 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+          <div className="bg-slate-800 border border-zinc-800 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
             {/* Modal Header */}
-            <div className="p-6 border-b border-white/10">
+            <div className="p-6 border-b border-zinc-800">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-white">{editingBundle ? 'Edit Bundle' : 'Create New Bundle'}</h2>
-                <button onClick={resetCreateModal} className="p-2 hover:bg-white/10 rounded-lg transition">
+                <button onClick={resetCreateModal} className="p-2 hover:bg-zinc-800 rounded-lg transition">
                   <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -1088,12 +1239,12 @@ function DashboardContent() {
                 {[1, 2, 3].map((step) => (
                   <div key={step} className="flex items-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                      createStep >= step ? 'bg-emerald-600 text-white' : 'bg-white/10 text-white/40'
+                      createStep >= step ? 'bg-emerald-600 text-white' : 'bg-zinc-800 text-white/40'
                     }`}>
                       {step}
                     </div>
                     {step < 3 && (
-                      <div className={`w-12 h-0.5 mx-2 ${createStep > step ? 'bg-emerald-600' : 'bg-white/10'}`} />
+                      <div className={`w-12 h-0.5 mx-2 ${createStep > step ? 'bg-emerald-600' : 'bg-zinc-800'}`} />
                     )}
                   </div>
                 ))}
@@ -1116,7 +1267,7 @@ function DashboardContent() {
                       placeholder="Search products..."
                       value={productSearch}
                       onChange={(e) => setProductSearch(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-emerald-500"
+                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-emerald-500"
                     />
                   </div>
 
@@ -1159,11 +1310,11 @@ function DashboardContent() {
                             className={`flex items-center justify-between p-3 rounded-lg border transition text-left ${
                               isSelected
                                 ? 'bg-emerald-600/20 border-emerald-500/50'
-                                : 'bg-white/5 border-white/10 hover:border-white/20'
+                                : 'bg-zinc-900/50 border-zinc-800 hover:border-white/20'
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center overflow-hidden">
+                              <div className="w-12 h-12 bg-zinc-800 rounded-lg flex items-center justify-center overflow-hidden">
                                 {product.image && product.image.startsWith('http') ? (
                                   <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
                                 ) : (
@@ -1196,7 +1347,7 @@ function DashboardContent() {
                       value={bundleName}
                       onChange={(e) => setBundleName(e.target.value)}
                       placeholder="e.g., Summer Essentials Pack"
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-emerald-500"
+                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-emerald-500"
                     />
                   </div>
 
@@ -1207,7 +1358,7 @@ function DashboardContent() {
                       onChange={(e) => setBundleDescription(e.target.value)}
                       placeholder="Describe your bundle..."
                       rows={2}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-emerald-500 resize-none"
+                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-emerald-500 resize-none"
                     />
                   </div>
 
@@ -1215,9 +1366,9 @@ function DashboardContent() {
                     <label className="block text-white/60 text-sm mb-2">Products & Quantities</label>
                     <div className="space-y-2">
                       {selectedProducts.map((product) => (
-                        <div key={product.productId} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                        <div key={product.productId} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center overflow-hidden">
+                            <div className="w-10 h-10 bg-zinc-800 rounded-lg flex items-center justify-center overflow-hidden">
                               {product.image && product.image.startsWith('http') ? (
                                 <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
                               ) : (
@@ -1229,14 +1380,14 @@ function DashboardContent() {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => updateQuantity(product.productId, product.quantity - 1)}
-                              className="w-8 h-8 bg-white/10 hover:bg-white/20 rounded flex items-center justify-center text-white"
+                              className="w-8 h-8 bg-zinc-800 hover:bg-white/20 rounded flex items-center justify-center text-white"
                             >
                               -
                             </button>
                             <span className="w-8 text-center text-white">{product.quantity}</span>
                             <button
                               onClick={() => updateQuantity(product.productId, product.quantity + 1)}
-                              className="w-8 h-8 bg-white/10 hover:bg-white/20 rounded flex items-center justify-center text-white"
+                              className="w-8 h-8 bg-zinc-800 hover:bg-white/20 rounded flex items-center justify-center text-white"
                             >
                               +
                             </button>
@@ -1268,7 +1419,7 @@ function DashboardContent() {
               {/* Step 3: Review */}
               {createStep === 3 && (
                 <div className="space-y-6">
-                  <div className="bg-white/5 rounded-lg p-4">
+                  <div className="bg-zinc-900/50 rounded-lg p-4">
                     <h3 className="text-white font-semibold mb-3">{bundleName || 'Untitled Bundle'}</h3>
                     {bundleDescription && <p className="text-white/60 text-sm mb-4">{bundleDescription}</p>}
 
@@ -1276,7 +1427,7 @@ function DashboardContent() {
                       {selectedProducts.map((product) => (
                         <div key={product.productId} className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center overflow-hidden">
+                            <div className="w-8 h-8 bg-zinc-800 rounded flex items-center justify-center overflow-hidden">
                               {product.image && product.image.startsWith('http') ? (
                                 <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
                               ) : (
@@ -1290,7 +1441,7 @@ function DashboardContent() {
                       ))}
                     </div>
 
-                    <div className="border-t border-white/10 pt-4 space-y-2">
+                    <div className="border-t border-zinc-800 pt-4 space-y-2">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-white/60">Original Price</span>
                         <span className="text-white/60 line-through">${originalPrice.toFixed(2)}</span>
@@ -1316,10 +1467,10 @@ function DashboardContent() {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-6 border-t border-white/10 flex items-center justify-between">
+            <div className="p-6 border-t border-zinc-800 flex items-center justify-between">
               <button
                 onClick={() => createStep > 1 ? setCreateStep((createStep - 1) as 1 | 2 | 3) : resetCreateModal()}
-                className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white transition"
+                className="px-4 py-2 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-white transition"
               >
                 {createStep === 1 ? 'Cancel' : 'Back'}
               </button>
@@ -1358,7 +1509,7 @@ function DashboardContent() {
 export default function Dashboard() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
       </div>
     }>
