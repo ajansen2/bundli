@@ -1295,25 +1295,6 @@ function DashboardContent() {
               </div>
             </div>
 
-            {/* Danger Zone */}
-            <div className="bg-red-600/10 backdrop-blur border border-red-500/30 rounded-xl p-6">
-              <h3 className="text-red-400 font-semibold mb-4">Danger Zone</h3>
-              <p className="text-white/60 text-sm mb-4">
-                Uninstalling will remove all your bundles and data. This action cannot be undone.
-              </p>
-              <button
-                onClick={() => {
-                  const shopDomain = shop || store?.shop_domain;
-                  if (shopDomain) {
-                    const storeName = shopDomain.replace('.myshopify.com', '');
-                    window.top?.location.assign(`https://admin.shopify.com/store/${storeName}/settings/apps?tab=installed`);
-                  }
-                }}
-                className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 rounded-lg text-red-400 text-sm transition"
-              >
-                Uninstall App
-              </button>
-            </div>
           </div>
         )}
       </main>
