@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
+function topLevelRedirectHTML(url: string, message: string = 'Redirecting...'): string {
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /><title>${message}</title>
+<style>body{background:#0a0a0a;color:white;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}.loader{text-align:center}.spinner{width:40px;height:40px;border:3px solid #333;border-top:3px solid #8b5cf6;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px}@keyframes spin{to{transform:rotate(360deg)}}</style>
+</head>
+<body><div class="loader"><div class="spinner"></div><p>${message}</p></div>
+<script>if(window.top&&window.top!==window.self){window.top.location.href=${JSON.stringify(url)}}else{window.location.href=${JSON.stringify(url)}}</script>
+</body></html>`;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -175,10 +186,10 @@ export async function GET(request: NextRequest) {
       );
       if (pendingCharge) {
         console.log('💰 Found existing pending charge, redirecting to confirmation');
-        const response = NextResponse.redirect(pendingCharge.confirmation_url);
-        response.cookies.delete('shopify_oauth_state');
-        response.cookies.delete('shopify_oauth_shop');
-        return response;
+        return new NextResponse(
+          topLevelRedirectHTML(pendingCharge.confirmation_url, 'Redirecting to billing approval...'),
+          { status: 200, headers: { 'Content-Type': 'text/html' } }
+        );
       }
 
       // If there's an active charge, skip billing creation
@@ -214,10 +225,10 @@ export async function GET(request: NextRequest) {
       if (chargeResponse.ok) {
         const { recurring_application_charge } = await chargeResponse.json();
         console.log('✅ Billing charge created, redirecting to confirmation');
-        const response = NextResponse.redirect(recurring_application_charge.confirmation_url);
-        response.cookies.delete('shopify_oauth_state');
-        response.cookies.delete('shopify_oauth_shop');
-        return response;
+        return new NextResponse(
+          topLevelRedirectHTML(recurring_application_charge.confirmation_url, 'Redirecting to billing approval...'),
+          { status: 200, headers: { 'Content-Type': 'text/html' } }
+        );
       } else {
         const errorText = await chargeResponse.text();
         console.error('❌ Billing charge failed:', chargeResponse.status, errorText);
@@ -226,11 +237,12 @@ export async function GET(request: NextRequest) {
 
     // Go to dashboard if already has active charge or billing creation fails
     console.log('📍 Redirecting to dashboard');
-    const shopifyAdminUrl = `https://admin.shopify.com/store/${shopName}/apps/${apiKey}?shop=${shop}`;
-    const response = NextResponse.redirect(shopifyAdminUrl);
-    response.cookies.delete('shopify_oauth_state');
-    response.cookies.delete('shopify_oauth_shop');
-    return response;
+    const billingFailed = shouldCreateCharge; // If we wanted to create but didn't redirect, charge creation failed
+    const shopifyAdminUrl = `https://admin.shopify.com/store/${shopName}/apps/${apiKey}?shop=${shop}${billingFailed ? '&billing_required=true' : ''}`;
+    return new NextResponse(
+      topLevelRedirectHTML(shopifyAdminUrl, 'Setting up your store...'),
+      { status: 200, headers: { 'Content-Type': 'text/html' } }
+    );
   } catch (error) {
     console.error('OAuth callback error:', error);
     return NextResponse.json({ error: 'OAuth failed' }, { status: 500 });
