@@ -2,8 +2,7 @@
 
 import { useState, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import createApp from '@shopify/app-bridge';
-import { Redirect } from '@shopify/app-bridge/actions';
+import { authenticatedFetch } from '@/lib/shopify-app-bridge';
 
 interface Store {
   id: string;
@@ -109,7 +108,7 @@ function DashboardContent() {
     if (!store || !shop) return;
     setSubscribing(true);
     try {
-      const response = await fetch('/api/billing/create', {
+      const response = await authenticatedFetch('/api/billing/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ storeId: store.id, shop })
@@ -139,19 +138,28 @@ function DashboardContent() {
   // Show onboarding only ONCE for new users
   useEffect(() => {
     if (store && !loading) {
-      const storageKey = `bundlemanager_onboarding_${store.id}`;
-      const hasSeenOnboarding = localStorage.getItem(storageKey);
-      if (hasSeenOnboarding !== 'true') {
+      try {
+        const storageKey = `bundlemanager_onboarding_${store.id}`;
+        const hasSeenOnboarding = localStorage.getItem(storageKey);
+        if (hasSeenOnboarding !== 'true') {
+          setShowOnboarding(true);
+          // Immediately mark as seen to prevent re-showing on refresh
+          localStorage.setItem(storageKey, 'true');
+        }
+      } catch (e) {
+        // localStorage may be unavailable in embedded iframes
         setShowOnboarding(true);
-        // Immediately mark as seen to prevent re-showing on refresh
-        localStorage.setItem(storageKey, 'true');
       }
     }
   }, [store, loading]);
 
   const completeOnboarding = () => {
     if (store) {
-      localStorage.setItem(`bundlemanager_onboarding_${store.id}`, 'true');
+      try {
+        localStorage.setItem(`bundlemanager_onboarding_${store.id}`, 'true');
+      } catch (e) {
+        // localStorage may be unavailable in embedded iframes
+      }
     }
     setShowOnboarding(false);
     setOnboardingStep(1);
@@ -190,7 +198,7 @@ function DashboardContent() {
     if (!shop) return;
     const fetchStore = async () => {
       try {
-        const response = await fetch(`/api/stores/lookup?shop=${shop}`);
+        const response = await authenticatedFetch(`/api/stores/lookup?shop=${shop}`);
         if (response.ok) {
           const data = await response.json();
           setStore(data.store);
@@ -204,7 +212,7 @@ function DashboardContent() {
 
     const fetchPreferences = async () => {
       try {
-        const response = await fetch(`/api/stores/preferences?shop=${shop}`);
+        const response = await authenticatedFetch(`/api/stores/preferences?shop=${shop}`);
         if (response.ok) {
           const data = await response.json();
           setPreferences(data.preferences);
@@ -217,26 +225,11 @@ function DashboardContent() {
     const fetchProducts = async () => {
       setLoadingProducts(true);
       try {
-        const response = await fetch(`/api/products?shop=${shop}`);
+        const response = await authenticatedFetch(`/api/products?shop=${shop}`);
 
         // Handle invalid token (401) or store not found (404) - redirect to OAuth
         if (response.status === 401 || response.status === 404) {
-          const host = searchParams.get('host');
-          if (host) {
-            try {
-              const app = createApp({
-                apiKey: process.env.NEXT_PUBLIC_SHOPIFY_API_KEY || '',
-                host: host,
-              });
-              const redirect = Redirect.create(app);
-              redirect.dispatch(Redirect.Action.REMOTE, `${window.location.origin}/api/auth/shopify?shop=${shop}`);
-              return;
-            } catch (e) {
-              console.error('App Bridge redirect failed:', e);
-            }
-          }
-          // Fallback for non-embedded
-          window.location.href = `/api/auth/shopify?shop=${shop}`;
+          window.open(`/api/auth/shopify?shop=${shop}`, '_top');
           return;
         }
 
@@ -246,10 +239,10 @@ function DashboardContent() {
           // Fetch real AI suggestions from backend
           if (data.products && data.products.length >= 2) {
             try {
-              const storeRes = await fetch(`/api/stores/lookup?shop=${shop}`);
+              const storeRes = await authenticatedFetch(`/api/stores/lookup?shop=${shop}`);
               if (storeRes.ok) {
                 const storeData = await storeRes.json();
-                const suggestionsRes = await fetch(`/api/ai/suggestions?store_id=${storeData.store?.id}`);
+                const suggestionsRes = await authenticatedFetch(`/api/ai/suggestions?store_id=${storeData.store?.id}`);
                 if (suggestionsRes.ok) {
                   const suggestionsData = await suggestionsRes.json();
                   if (suggestionsData.suggestions && suggestionsData.suggestions.length > 0) {
@@ -282,7 +275,7 @@ function DashboardContent() {
 
     const fetchBundles = async () => {
       try {
-        const response = await fetch(`/api/bundles?shop=${shop}`);
+        const response = await authenticatedFetch(`/api/bundles?shop=${shop}`);
         if (response.ok) {
           const data = await response.json();
           setBundles(data.bundles || []);
@@ -315,7 +308,7 @@ function DashboardContent() {
     setSavingPrefs(true);
 
     try {
-      await fetch('/api/stores/preferences', {
+      await authenticatedFetch('/api/stores/preferences', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shop, [key]: value }),
@@ -343,7 +336,7 @@ function DashboardContent() {
     setOpenMenuId(null);
 
     try {
-      await fetch('/api/bundles', {
+      await authenticatedFetch('/api/bundles', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bundleId, isActive: newIsActive }),
@@ -368,7 +361,7 @@ function DashboardContent() {
     setOpenMenuId(null);
 
     try {
-      const response = await fetch(`/api/bundles?bundleId=${bundleId}&shop=${shop}`, {
+      const response = await authenticatedFetch(`/api/bundles?bundleId=${bundleId}&shop=${shop}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Failed to delete');
@@ -425,7 +418,7 @@ function DashboardContent() {
     try {
       if (editingBundle) {
         // Update existing bundle
-        await fetch('/api/bundles', {
+        await authenticatedFetch('/api/bundles', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -451,7 +444,7 @@ function DashboardContent() {
         ));
       } else {
         // Create new bundle via API
-        const response = await fetch('/api/bundles', {
+        const response = await authenticatedFetch('/api/bundles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -518,7 +511,7 @@ function DashboardContent() {
     setAnalyzingOrders(true);
 
     try {
-      const response = await fetch('/api/ai/suggestions', {
+      const response = await authenticatedFetch('/api/ai/suggestions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ storeId: store.id }),
