@@ -4,9 +4,15 @@ import {
   sendLowInventoryEmail,
   sendWeeklySummaryEmail,
 } from '@/lib/email';
+import { getAuthenticatedShop } from '@/lib/verify-session';
 
 // Test endpoint to verify email notifications are working
 export async function POST(request: NextRequest) {
+  const shop = getAuthenticatedShop(request);
+  if (!shop) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { type, email, storeName } = body;

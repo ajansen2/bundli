@@ -80,40 +80,86 @@ export async function GET(request: NextRequest) {
 async function checkExistingCharge(store: any): Promise<'active' | 'pending' | 'none'> {
   try {
     const response = await fetch(
-      `https://${store.shop_domain}/admin/api/2024-10/recurring_application_charges.json`,
-      { headers: { 'X-Shopify-Access-Token': store.access_token } }
+      `https://${store.shop_domain}/admin/api/2024-10/graphql.json`,
+      {
+        method: 'POST',
+        headers: {
+          'X-Shopify-Access-Token': store.access_token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: `
+            query {
+              currentAppInstallation {
+                activeSubscriptions {
+                  id
+                  status
+                }
+              }
+            }
+          `,
+        }),
+      }
     );
     if (!response.ok) return 'none';
-    const { recurring_application_charges } = await response.json();
-    if (recurring_application_charges?.find((c: any) => c.status === 'active')) return 'active';
-    if (recurring_application_charges?.find((c: any) => c.status === 'pending')) return 'pending';
+    const data = await response.json();
+    const subs = data.data?.currentAppInstallation?.activeSubscriptions || [];
+    if (subs.find((s: any) => s.status === 'ACTIVE')) return 'active';
+    if (subs.find((s: any) => s.status === 'PENDING')) return 'pending';
     return 'none';
   } catch { return 'none'; }
 }
 
 async function createBillingCharge(store: any): Promise<boolean> {
   try {
-    const apiKey = process.env.SHOPIFY_API_KEY;
     const isTest = store.shop_domain.includes('-test') || store.shop_domain.includes('development');
-    const shopName = store.shop_domain.replace('.myshopify.com', '');
-    const returnUrl = `https://admin.shopify.com/store/${shopName}/apps/${apiKey}`;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bundlemanager.app';
+    const returnUrl = `${appUrl}/api/billing/callback?shop=${store.shop_domain}`;
 
     const response = await fetch(
-      `https://${store.shop_domain}/admin/api/2024-10/recurring_application_charges.json`,
+      `https://${store.shop_domain}/admin/api/2024-10/graphql.json`,
       {
         method: 'POST',
-        headers: { 'X-Shopify-Access-Token': store.access_token, 'Content-Type': 'application/json' },
+        headers: {
+          'X-Shopify-Access-Token': store.access_token,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          recurring_application_charge: {
+          query: `
+            mutation AppSubscriptionCreate($name: String!, $returnUrl: URL!, $test: Boolean, $lineItems: [AppSubscriptionLineItemInput!]!) {
+              appSubscriptionCreate(
+                name: $name
+                returnUrl: $returnUrl
+                test: $test
+                lineItems: $lineItems
+              ) {
+                appSubscription { id status }
+                confirmationUrl
+                userErrors { field message }
+              }
+            }
+          `,
+          variables: {
             name: 'Bundle Manager Pro',
-            price: 19.99,
-            return_url: returnUrl,
-            ...(isTest && { test: true }),
-          }
-        })
+            returnUrl: returnUrl,
+            test: isTest,
+            lineItems: [{
+              plan: {
+                appRecurringPricingDetails: {
+                  price: { amount: 19.99, currencyCode: 'USD' },
+                  interval: 'EVERY_30_DAYS',
+                },
+              },
+            }],
+          },
+        }),
       }
     );
-    return response.ok;
+
+    if (!response.ok) return false;
+    const data = await response.json();
+    const userErrors = data.data?.appSubscriptionCreate?.userErrors || [];
+    return userErrors.length === 0 && !!data.data?.appSubscriptionCreate?.confirmationUrl;
   } catch { return false; }
 }
 

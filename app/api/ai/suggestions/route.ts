@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getAuthenticatedShop } from '@/lib/verify-session';
 
 /**
  * AI Bundle Suggestions API
@@ -7,6 +8,11 @@ import { createClient } from '@supabase/supabase-js';
  */
 
 export async function GET(request: NextRequest) {
+  const shop = getAuthenticatedShop(request);
+  if (!shop) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const storeId = request.nextUrl.searchParams.get('store_id');
 
@@ -53,6 +59,11 @@ export async function GET(request: NextRequest) {
  * Generate new AI suggestions by analyzing order history
  */
 export async function POST(request: NextRequest) {
+  const shop = getAuthenticatedShop(request);
+  if (!shop) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { storeId } = await request.json();
 

@@ -243,41 +243,34 @@ function DashboardContent() {
         if (response.ok) {
           const data = await response.json();
           setProducts(data.products || []);
-          // Generate mock AI suggestions from real products
+          // Fetch real AI suggestions from backend
           if (data.products && data.products.length >= 2) {
-            const prods = data.products.slice(0, 6);
-            const suggestions: AISuggestion[] = [];
-            if (prods.length >= 2) {
-              suggestions.push({
-                id: '1',
-                products: [prods[0], prods[1]].map((p: Product) => ({ id: p.id, title: p.title, image: p.image })),
-                confidence: 0.92,
-                timesBoughtTogether: 156,
-                suggestedDiscount: 15,
-                status: 'pending'
-              });
+            try {
+              const storeRes = await fetch(`/api/stores/lookup?shop=${shop}`);
+              if (storeRes.ok) {
+                const storeData = await storeRes.json();
+                const suggestionsRes = await fetch(`/api/ai/suggestions?store_id=${storeData.store?.id}`);
+                if (suggestionsRes.ok) {
+                  const suggestionsData = await suggestionsRes.json();
+                  if (suggestionsData.suggestions && suggestionsData.suggestions.length > 0) {
+                    setAiSuggestions(suggestionsData.suggestions.map((s: any) => ({
+                      id: s.id,
+                      products: (s.product_ids || []).map((pid: string, i: number) => ({
+                        id: pid,
+                        title: s.product_titles?.[i] || 'Unknown Product',
+                        image: data.products.find((p: Product) => p.id === pid)?.image || null,
+                      })),
+                      confidence: s.confidence_score || 0,
+                      timesBoughtTogether: s.times_bought_together || 0,
+                      suggestedDiscount: s.suggested_discount || 10,
+                      status: s.status || 'pending',
+                    })));
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('Error fetching AI suggestions:', e);
             }
-            if (prods.length >= 4) {
-              suggestions.push({
-                id: '2',
-                products: [prods[2], prods[3]].map((p: Product) => ({ id: p.id, title: p.title, image: p.image })),
-                confidence: 0.87,
-                timesBoughtTogether: 98,
-                suggestedDiscount: 10,
-                status: 'pending'
-              });
-            }
-            if (prods.length >= 3) {
-              suggestions.push({
-                id: '3',
-                products: [prods[0], prods[1], prods[2]].map((p: Product) => ({ id: p.id, title: p.title, image: p.image })),
-                confidence: 0.78,
-                timesBoughtTogether: 67,
-                suggestedDiscount: 20,
-                status: 'pending'
-              });
-            }
-            setAiSuggestions(suggestions);
           }
         }
       } catch (error) {
@@ -519,53 +512,42 @@ function DashboardContent() {
     setAiSuggestions(aiSuggestions.map(s => s.id === id ? { ...s, status: 'dismissed' } : s));
   };
 
-  const runAIAnalysis = () => {
-    if (products.length < 2) return;
+  const runAIAnalysis = async () => {
+    if (products.length < 2 || !store) return;
 
     setAnalyzingOrders(true);
 
-    // Simulate AI analysis and generate new suggestions from products
-    setTimeout(() => {
-      const shuffled = [...products].sort(() => Math.random() - 0.5);
-      const newSuggestions: AISuggestion[] = [];
+    try {
+      const response = await fetch('/api/ai/suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId: store.id }),
+      });
 
-      // Generate 3 new suggestions with random product combinations
-      if (shuffled.length >= 2) {
-        newSuggestions.push({
-          id: Date.now().toString() + '-1',
-          products: [shuffled[0], shuffled[1]].map(p => ({ id: p.id, title: p.title, image: p.image })),
-          confidence: 0.85 + Math.random() * 0.12,
-          timesBoughtTogether: Math.floor(50 + Math.random() * 150),
-          suggestedDiscount: Math.floor(10 + Math.random() * 15),
-          status: 'pending'
-        });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.suggestions && data.suggestions.length > 0) {
+          setAiSuggestions(data.suggestions.map((s: any) => ({
+            id: s.id,
+            products: (s.product_ids || []).map((pid: string, i: number) => ({
+              id: pid,
+              title: s.product_titles?.[i] || 'Unknown Product',
+              image: products.find(p => p.id === pid)?.image || null,
+            })),
+            confidence: s.confidence_score || 0,
+            timesBoughtTogether: s.times_bought_together || 0,
+            suggestedDiscount: s.suggested_discount || 10,
+            status: s.status || 'pending',
+          })));
+        } else {
+          setAiSuggestions([]);
+        }
       }
-
-      if (shuffled.length >= 4) {
-        newSuggestions.push({
-          id: Date.now().toString() + '-2',
-          products: [shuffled[2], shuffled[3]].map(p => ({ id: p.id, title: p.title, image: p.image })),
-          confidence: 0.75 + Math.random() * 0.15,
-          timesBoughtTogether: Math.floor(30 + Math.random() * 100),
-          suggestedDiscount: Math.floor(8 + Math.random() * 12),
-          status: 'pending'
-        });
-      }
-
-      if (shuffled.length >= 6) {
-        newSuggestions.push({
-          id: Date.now().toString() + '-3',
-          products: [shuffled[4], shuffled[5], shuffled[0]].map(p => ({ id: p.id, title: p.title, image: p.image })),
-          confidence: 0.70 + Math.random() * 0.15,
-          timesBoughtTogether: Math.floor(20 + Math.random() * 80),
-          suggestedDiscount: Math.floor(15 + Math.random() * 10),
-          status: 'pending'
-        });
-      }
-
-      setAiSuggestions(newSuggestions);
+    } catch (error) {
+      console.error('Error running AI analysis:', error);
+    } finally {
       setAnalyzingOrders(false);
-    }, 2000);
+    }
   };
 
   if (!shop) {

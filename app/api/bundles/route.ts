@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireActiveSubscription } from '@/lib/check-subscription';
+import { getAuthenticatedShop } from '@/lib/verify-session';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,11 +10,9 @@ const supabase = createClient(
 
 // GET - Fetch all bundles for a store
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const shop = searchParams.get('shop');
-
+  const shop = getAuthenticatedShop(request);
   if (!shop) {
-    return NextResponse.json({ error: 'Shop parameter required' }, { status: 400 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
@@ -88,11 +87,16 @@ export async function GET(request: NextRequest) {
 
 // POST - Create a new bundle
 export async function POST(request: NextRequest) {
+  const shop = getAuthenticatedShop(request);
+  if (!shop) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
-    const { shop, name, description, items, originalPrice, bundlePrice, discountPercent } = body;
+    const { name, description, items, originalPrice, bundlePrice, discountPercent } = body;
 
-    if (!shop || !items || items.length === 0) {
+    if (!items || items.length === 0) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -263,6 +267,11 @@ export async function POST(request: NextRequest) {
 
 // PATCH - Update a bundle
 export async function PATCH(request: NextRequest) {
+  const shop = getAuthenticatedShop(request);
+  if (!shop) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { bundleId, isActive, name, description, discountPercent } = body;
@@ -296,9 +305,13 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE - Delete a bundle
 export async function DELETE(request: NextRequest) {
+  const shop = getAuthenticatedShop(request);
+  if (!shop) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const bundleId = searchParams.get('bundleId');
-  const shop = searchParams.get('shop');
 
   if (!bundleId) {
     return NextResponse.json({ error: 'Bundle ID required' }, { status: 400 });

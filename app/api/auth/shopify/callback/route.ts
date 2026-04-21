@@ -168,70 +168,92 @@ export async function GET(request: NextRequest) {
     const isTestCharge = shop.includes('-test') || shop.includes('development') || shop.includes('dev-');
     const returnUrl = `${appUrl}/api/billing/callback?shop=${shop}&store_id=${store?.id}`;
 
-    console.log('💰 Checking for existing charges...');
+    console.log('Checking for existing subscriptions via GraphQL...');
 
-    // Check for existing pending or active charges
-    const existingChargesResponse = await fetch(`https://${shop}/admin/api/2024-10/recurring_application_charges.json`, {
-      headers: { 'X-Shopify-Access-Token': accessToken },
+    // Check for existing active subscriptions using GraphQL
+    const existingSubResponse = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
+      method: 'POST',
+      headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `
+          query {
+            currentAppInstallation {
+              activeSubscriptions {
+                id
+                name
+                status
+              }
+            }
+          }
+        `,
+      }),
     });
 
     let shouldCreateCharge = true;
-    if (existingChargesResponse.ok) {
-      const existingCharges = await existingChargesResponse.json();
-      console.log('💰 Existing charges:', JSON.stringify(existingCharges.recurring_application_charges?.map((c: any) => ({ id: c.id, status: c.status, name: c.name }))));
-
-      // If there's a pending charge, redirect to its confirmation URL
-      const pendingCharge = existingCharges.recurring_application_charges?.find(
-        (c: any) => c.status === 'pending'
-      );
-      if (pendingCharge) {
-        console.log('💰 Found existing pending charge, redirecting to confirmation');
-        return new NextResponse(
-          topLevelRedirectHTML(pendingCharge.confirmation_url, 'Redirecting to billing approval...'),
-          { status: 200, headers: { 'Content-Type': 'text/html' } }
-        );
-      }
-
-      // If there's an active charge, skip billing creation
-      const activeCharge = existingCharges.recurring_application_charges?.find(
-        (c: any) => c.status === 'active'
-      );
-      if (activeCharge) {
-        console.log('✅ Already has active billing charge:', activeCharge.id);
+    if (existingSubResponse.ok) {
+      const existingSubData = await existingSubResponse.json();
+      const activeSubs = existingSubData.data?.currentAppInstallation?.activeSubscriptions || [];
+      const activeSub = activeSubs.find((s: any) => s.status === 'ACTIVE');
+      if (activeSub) {
+        console.log('Already has active subscription:', activeSub.id);
         shouldCreateCharge = false;
       }
-    } else {
-      console.log('💰 Failed to fetch existing charges:', existingChargesResponse.status);
     }
 
     if (shouldCreateCharge) {
-      console.log('💰 Creating new billing charge...');
-      const chargeResponse = await fetch(`https://${shop}/admin/api/2024-10/recurring_application_charges.json`, {
+      console.log('Creating new subscription via GraphQL...');
+      const chargeResponse = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
         method: 'POST',
         headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          recurring_application_charge: {
+          query: `
+            mutation AppSubscriptionCreate($name: String!, $returnUrl: URL!, $trialDays: Int, $test: Boolean, $lineItems: [AppSubscriptionLineItemInput!]!) {
+              appSubscriptionCreate(
+                name: $name
+                returnUrl: $returnUrl
+                trialDays: $trialDays
+                test: $test
+                lineItems: $lineItems
+              ) {
+                appSubscription { id status }
+                confirmationUrl
+                userErrors { field message }
+              }
+            }
+          `,
+          variables: {
             name: 'Bundle Manager Pro',
-            price: 19.99,
-            trial_days: 7,
-            return_url: returnUrl,
-            ...(isTestCharge && { test: true }),
-          }
-        })
+            returnUrl: returnUrl,
+            trialDays: 7,
+            test: isTestCharge,
+            lineItems: [{
+              plan: {
+                appRecurringPricingDetails: {
+                  price: { amount: 19.99, currencyCode: 'USD' },
+                  interval: 'EVERY_30_DAYS',
+                },
+              },
+            }],
+          },
+        }),
       });
 
-      console.log('💰 Billing response status:', chargeResponse.status);
-
       if (chargeResponse.ok) {
-        const { recurring_application_charge } = await chargeResponse.json();
-        console.log('✅ Billing charge created, redirecting to confirmation');
-        return new NextResponse(
-          topLevelRedirectHTML(recurring_application_charge.confirmation_url, 'Redirecting to billing approval...'),
-          { status: 200, headers: { 'Content-Type': 'text/html' } }
-        );
+        const chargeData = await chargeResponse.json();
+        const confirmationUrl = chargeData.data?.appSubscriptionCreate?.confirmationUrl;
+        const userErrors = chargeData.data?.appSubscriptionCreate?.userErrors || [];
+
+        if (confirmationUrl && userErrors.length === 0) {
+          console.log('Subscription created, redirecting to confirmation');
+          return new NextResponse(
+            topLevelRedirectHTML(confirmationUrl, 'Redirecting to billing approval...'),
+            { status: 200, headers: { 'Content-Type': 'text/html' } }
+          );
+        } else {
+          console.error('Subscription creation failed:', userErrors);
+        }
       } else {
-        const errorText = await chargeResponse.text();
-        console.error('❌ Billing charge failed:', chargeResponse.status, errorText);
+        console.error('GraphQL billing request failed:', chargeResponse.status);
       }
     }
 

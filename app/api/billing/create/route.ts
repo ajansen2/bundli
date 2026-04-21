@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getAuthenticatedShop } from '@/lib/verify-session';
 
 /**
  * Create Billing Charge using GraphQL API

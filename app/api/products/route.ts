@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getAuthenticatedShop } from '@/lib/verify-session';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,11 +8,9 @@ const supabase = createClient(
 );
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const shop = searchParams.get('shop');
-
+  const shop = getAuthenticatedShop(request);
   if (!shop) {
-    return NextResponse.json({ error: 'Shop parameter required' }, { status: 400 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
