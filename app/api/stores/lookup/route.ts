@@ -4,8 +4,8 @@ import { getAuthenticatedShop } from '@/lib/verify-session';
 
 export async function GET(request: NextRequest) {
   try {
-    const shop = getAuthenticatedShop(request, true);
-    if (!shop) return NextResponse.json({ error: 'Missing shop parameter' }, { status: 400 });
+    const shop = getAuthenticatedShop(request);
+    if (!shop) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 

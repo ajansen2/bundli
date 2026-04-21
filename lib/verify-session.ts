@@ -18,12 +18,11 @@ function verifyAndDecodeSessionToken(token: string): string | null {
   } catch { return null; }
 }
 
-export function getAuthenticatedShop(request: NextRequest, allowUnsigned = false): string | null {
+export function getAuthenticatedShop(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const shop = verifyAndDecodeSessionToken(authHeader.slice(7));
     if (shop) return shop;
   }
-  if (!allowUnsigned) return null;
-  return request.headers.get('x-shop-domain') || request.nextUrl.searchParams.get('shop') || null;
+  return null;
 }
